@@ -1,5 +1,4 @@
 const config = require('../src/config/externaldownload.cjs');
-const axios = require('axios');
 const cheerio = require('cheerio');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -15,8 +14,12 @@ async function getFileNames(url, regex) {
       throw new Error('URL is undefined or empty.');
     }
 
-    const res = await axios.get(url, { timeout: 5000 });
-    const $ = cheerio.load(res.data);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    const html = await res.text();
+    const $ = cheerio.load(html);
     const files = [];
     $('a').each((_, el) => {
       const href = $(el).attr('href');

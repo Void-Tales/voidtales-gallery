@@ -2,7 +2,6 @@ const config = require('../src/config/externaldownload.cjs');
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
 const cheerio = require('cheerio');
 
 const destDir = './public/images/original/';
@@ -18,8 +17,11 @@ const externalUrl = config.originalSourceUrlExternal ? config.originalSourceUrlE
  */
 async function fetchDirectoryListing(url) {
   try {
-    const res = await axios.get(url, { timeout: 3000 });
-    return res.data;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return await res.text();
   } catch (err) {
     return null;
   }

@@ -45,13 +45,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-axios-cheerio-${{ hashFiles('scripts/get-cache-key.cjs') }}
+          key: ${{ runner.os }}-npm-cheerio-${{ hashFiles('scripts/get-cache-key.cjs') }}
           restore-keys: |
-            ${{ runner.os }}-npm-axios-cheerio-
+            ${{ runner.os }}-npm-cheerio-
 
       # 📦 Install dependencies for cache key generation
       - name: 📦 Install dependencies for cache key generation
-        run: npm install axios cheerio
+        run: npm install cheerio
         shell: bash
 
       # 🔑 Generate dynamic cache key from remote files
