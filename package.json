@@ -31,14 +31,14 @@
     "@astrojs/sitemap": "^3.7.2",
     "astro": "^5.18.1",
     "cheerio": "^1.2.0",
-    "dotenv": "^17.4.1",
+    "dotenv": "^17.4.2",
     "glightbox": "^3.3.1",
     "preact": "^10.29.1",
     "smartypants": "^0.2.2",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.11",
+    "@biomejs/biome": "^2.4.12",
     "concurrently": "^9.2.1",
     "husky": "^9.1.7",
     "sharp": "^0.34.5",
