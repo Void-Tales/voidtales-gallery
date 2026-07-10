@@ -35,7 +35,7 @@
   animation: card-in var(--dur) var(--ease) var(--card-delay, 0s) forwards;
 }
 
-/* End state of card-in — set once the animation has run, so re-renders and
+/* End state of card-in - set once the animation has run, so re-renders and
    column reflows never replay it. */
 .photo.shown {
   opacity: 1;
