@@ -132,7 +132,7 @@ export default function PhotoGridClient({
 
   function handleImageError(id: string, attempt: number) {
     // Bump the retry counter, which re-renders with a `?r=n` cache-buster on src *and*
-    // srcset — mutating img.src alone is a no-op while srcset wins the candidate pick.
+    // srcset - mutating img.src alone is a no-op while srcset wins the candidate pick.
     const bump = () => setRetries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
     if (attempt >= MAX_RETRIES) bump();
     else setTimeout(bump, 2000);

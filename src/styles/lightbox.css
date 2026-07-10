@@ -9,7 +9,7 @@ body.glightbox-open {
   overflow: visible !important;
 }
 
-/* scrollbar-gutter: stable macht GLightbox' Margin-Kompensation obsolet —
+/* scrollbar-gutter: stable macht GLightbox' Margin-Kompensation obsolet -
    sie würde jetzt selbst einen Shift erzeugen. */
 body.gscrollbar-fixer {
   margin-right: 0 !important;

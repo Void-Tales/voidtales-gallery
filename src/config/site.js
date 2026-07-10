@@ -48,7 +48,7 @@ export const siteConfig = {
     eyebrow: 'Community Screenshots',  // Small caps label above the headline
     title: 'Void Tales Gallery',  // Main headline for the hero section
     titleAccent: 'Gallery',  // Part of the title that gets the accent glow
-    subtitle: 'The latest images from the world of VoidTales – sorted by date.',  // Subtitle text
+    subtitle: 'The latest images from the world of VoidTales - sorted by date.',  // Subtitle text
     cta: 'To the Portal',  // Call-to-action button text
     ctaLink: 'https://portal.voidtales.win', // 🌐 External link for the button
   },

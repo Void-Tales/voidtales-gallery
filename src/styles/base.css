@@ -98,7 +98,7 @@ html {
     scroll-behavior: auto !important;
   }
 
-  /* Cards are opacity:0 until card-in runs — force the end state instead. */
+  /* Cards are opacity:0 until card-in runs - force the end state instead. */
   .photo {
     opacity: 1 !important;
     transform: none !important;
