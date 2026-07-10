@@ -1,5 +1,5 @@
 # Stage 1: Base image for all subsequent stages, using a minimal Node.js environment
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 
 # Optional build arguments for remote downloads (handled in CI workflow)
 ARG EXT_DL_URL_MARKDOWN

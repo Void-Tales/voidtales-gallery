@@ -2,6 +2,7 @@
   "name": "voidtales-gallery",
   "type": "module",
   "version": "0.0.1",
+  "packageManager": "pnpm@11.11.0",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "prepare": "husky",
