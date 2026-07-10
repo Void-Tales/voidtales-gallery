@@ -136,33 +136,42 @@
 
 /* ---------- Theme toggle ---------- */
 
-.modern-theme-toggle {
+.theme-toggle {
   position: relative;
-  display: block;
-  width: 3rem;
-  height: 1.6rem;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  background: var(--bg-raised);
-  cursor: pointer;
 }
 
-.modern-theme-toggle::before {
-  content: '';
+.theme-toggle:hover {
+  color: var(--accent);
+}
+
+/* Both icons stacked; only one is faded in. Light theme shows the moon
+   (click -> go dark), dark theme shows the sun. */
+.theme-icon {
   position: absolute;
-  top: 50%;
-  left: 0.2rem;
   width: 1.05rem;
   height: 1.05rem;
-  border-radius: 50%;
-  background: var(--accent);
-  transform: translateY(-50%);
-  transition: transform var(--dur-fast) var(--ease);
+  opacity: 0;
+  fill: none;
+  stroke: currentcolor;
+  transform: rotate(-90deg) scale(0.5);
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
 }
 
-html.dark .modern-theme-toggle::before {
-  transform: translateY(-50%) translateX(1.5rem);
+.theme-icon-moon {
+  opacity: 1;
+  transform: rotate(0) scale(1);
+}
+
+html.dark .theme-icon-moon {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.5);
+}
+
+html.dark .theme-icon-sun {
+  opacity: 1;
+  transform: rotate(0) scale(1);
 }
 
 /* ---------- Sort selector ---------- */
@@ -350,7 +359,7 @@ html.dark .modern-theme-toggle::before {
 @media (width <= 767px) {
   .header-nav,
   .header-actions .sort-selector,
-  .header-actions .modern-theme-toggle {
+  .header-actions .theme-toggle {
     display: none;
   }
 
