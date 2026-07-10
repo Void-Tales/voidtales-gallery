@@ -62,6 +62,8 @@ const externalEntries = externalImages.map(file => {
     caption: frontmatter.caption || '',
     author: frontmatter.author || '',
     body: frontmatter.body || '',
+    width: Number(frontmatter.width) || null,
+    height: Number(frontmatter.height) || null,
   };
 });
 
@@ -87,6 +89,8 @@ const defaultEntries = defaultImages.map(file => {
     caption: frontmatter.caption || '',
     author: frontmatter.author || '',
     body: frontmatter.body || '',
+    width: Number(frontmatter.width) || null,
+    height: Number(frontmatter.height) || null,
   };
 });
 
