@@ -1,3 +1,4 @@
 User-agent: *
 Allow: /
-Sitemap: https://gallery.voidtales.win/sitemap.xml  # Deine Domain
+Sitemap: https://gallery.voidtales.win/sitemap.xml
+Sitemap: https://gallery.voidtales.win/sitemap-index.xml

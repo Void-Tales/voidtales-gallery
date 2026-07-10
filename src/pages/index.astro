@@ -1,4 +1,5 @@
 ---
+import { Font } from 'astro:assets';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 import SortSelector from '../components/SortSelector';
 import { siteConfig } from '../config/site.js';
@@ -9,12 +10,20 @@ import '../styles/base.css';
 import '../styles/layout.css';
 import '../styles/components.css';
 import '../styles/hero.css';
-import '../styles/responsive.css';
-import '../styles/accessibility.css';
+import '../styles/gallery.css';
+import '../styles/lightbox.css';
 
 import Header from '../components/Header.astro';
 import PhotoGrid from '../components/PhotoGrid.astro';
 import Footer from '../components/Footer.astro';
+
+// Split the headline so one word can carry the accent glow.
+const { title, titleAccent } = siteConfig.hero;
+const hasAccent = Boolean(titleAccent) && title.includes(titleAccent);
+const [beforeAccent, afterAccent] = hasAccent ? title.split(titleAccent) : [title, ''];
+
+// Absolute URL: relative og:image paths are ignored by Discord/Twitter link previews.
+const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
 ---
 
 <!doctype html>
@@ -22,20 +31,28 @@ import Footer from '../components/Footer.astro';
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/x-icon" href={siteConfig.favicon} />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href={siteConfig.manifest} />
-    {siteConfig.fonts.map(fontUrl => (
-      <link href={fontUrl} rel="stylesheet" />
-    ))}
+    {/* Both families resolve to a single variable-font file per style; preload the normal-style file only */}
+    <Font cssVariable="--font-unbounded" preload={[{ style: 'normal' }]} />
+    <Font cssVariable="--font-instrument-sans" preload={[{ style: 'normal' }]} />
     <title>{siteConfig.name}</title>
     <meta name="description" content={siteConfig.description} />
-    <meta name="keywords" content={siteConfig.keywords.join(', ')} />
     <meta name="author" content={siteConfig.author} />
+    <meta name="theme-color" content="#0a0714" />
+    <link rel="canonical" href={siteConfig.url} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteConfig.name} />
     <meta property="og:title" content={siteConfig.name} />
     <meta property="og:description" content={siteConfig.description} />
-    <meta property="og:image" content={siteConfig.ogImage} />
+    <meta property="og:image" content={ogImageUrl} />
     <meta property="og:url" content={siteConfig.url} />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={siteConfig.name} />
+    <meta name="twitter:description" content={siteConfig.description} />
+    <meta name="twitter:image" content={ogImageUrl} />
     <!-- Set theme on initial load -->
     <script>
       // Set theme based only on localStorage, default is dark
@@ -45,56 +62,46 @@ import Footer from '../components/Footer.astro';
           var isDark = saved === 'dark' || !saved;
           document.documentElement.classList.toggle('dark', isDark);
           document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-          document.documentElement.style.visibility = 'visible';
-        } catch(e) {
-          document.documentElement.style.visibility = 'visible';
-        }
+        } catch(e) {}
       })();
     </script>
-    <style>
-      html { visibility: hidden; }
-    </style>
-    <!-- Load CSS directly after theme script -->
-    <!-- <link rel="stylesheet" href="/src/styles/variables.css" />
-    <link rel="stylesheet" href="/src/styles/base.css" />
-    <link rel="stylesheet" href="/src/styles/layout.css" />
-    <link rel="stylesheet" href="/src/styles/components.css" />
-    <link rel="stylesheet" href="/src/styles/hero.css" />
-    <link rel="stylesheet" href="/src/styles/responsive.css" />
-    <link rel="stylesheet" href="/src/styles/accessibility.css" /> -->
   </head>
-  <body style={`--site-font-family: ${siteConfig.fontFamily};`}>
-    <div id="background"></div>
+  <body>
     <Header />
     {/* Mobile menu dropdown */}
     <div id="mobile-menu" class="mobile-menu">
       <nav class="mobile-nav" role="navigation" aria-label="Mobile navigation">
         {navigationLinks.map(link => (
-          <a href={link.href} class="nav-link" style={`font-family: ${siteConfig.fontFamily};`}>{link.label}</a>
+          <a href={link.href} class="nav-link">{link.label}</a>
         ))}
       </nav>
       <div class="mobile-actions">
-        <SortSelector client:load />
+        <SortSelector defaultSort={siteConfig.defaultSort} client:load />
         <ThemeToggle client:load />
       </div>
     </div>
-    
+
     {/* Hero section */}
     <section class="hero">
       <div class="hero-content">
-        <h1 class="hero-title" style={`font-family: ${siteConfig.fontFamilyHead};`}>{siteConfig.hero.title}</h1>
-        <p class="hero-subtitle" style={`font-family: ${siteConfig.fontFamily};`}>{siteConfig.hero.subtitle}</p>
-        <a
-          href={siteConfig.hero.ctaLink}
-          class="hero-cta"
-          style={`font-family: ${siteConfig.fontFamily};`}
-          target="_blank" rel="noopener noreferrer"
-        >
-          {siteConfig.hero.cta}
-        </a>
+        <span class="hero-eyebrow">{siteConfig.hero.eyebrow}</span>
+        <h1 class="hero-title">
+          {beforeAccent}{hasAccent && <span class="accent">{titleAccent}</span>}{afterAccent}
+        </h1>
+        <p class="hero-subtitle">{siteConfig.hero.subtitle}</p>
+        <div class="hero-actions">
+          <a
+            href={siteConfig.hero.ctaLink}
+            class="hero-cta"
+            target="_blank" rel="noopener noreferrer"
+          >
+            {siteConfig.hero.cta}
+          </a>
+          <a href="#photos" class="hero-scroll">↓ Browse the gallery</a>
+        </div>
       </div>
     </section>
-    
+
     {/* Main photo grid */}
     <div class="page-wrapper">
       <main class="container" role="main" id="photos">

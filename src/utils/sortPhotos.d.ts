@@ -1,13 +1,5 @@
-export function sortPhotos(
-  photos: Array<{
-    id: string;
-    imageUrl: string;
-    thumbPath?: string;
-    title?: string;
-    caption?: string;
-    author?: string;
-    body?: string;
-    date?: string;
-  }>,
+/** Sorts by date/title/random — it only touches `date` and `title`. */
+export function sortPhotos<T extends { title?: string; date?: string }>(
+  photos: T[],
   option: string
-): typeof photos;
+): T[];
