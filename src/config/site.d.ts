@@ -5,9 +5,6 @@ export const siteConfig: {
   ogImage: string;
   author: string;
   keywords: string[];
-  fonts: string[];
-  fontFamily: string;
-  fontFamilyHead?: string;
   manifest: string;
   favicon: string;
   hero: {

@@ -3,9 +3,9 @@
 /* One scale, two themes. Dark is the design target, light is derived. */
 
 :root {
-  /* Typography */
-  --font-display: 'Unbounded', system-ui, sans-serif;
-  --font-body: 'Instrument Sans', system-ui, sans-serif;
+  /* Typography (font faces injected by <Font> in index.astro, Astro Fonts API) */
+  --font-display: var(--font-unbounded);
+  --font-body: var(--font-instrument-sans);
 
   /* Light theme surface + ink */
   --bg: #f6f5fa;

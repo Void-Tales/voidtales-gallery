@@ -1,4 +1,5 @@
 ---
+import { Font } from 'astro:assets';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 import SortSelector from '../components/SortSelector';
 import { siteConfig } from '../config/site.js';
@@ -29,11 +30,9 @@ const [beforeAccent, afterAccent] = hasAccent ? title.split(titleAccent) : [titl
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <link rel="icon" type="image/x-icon" href={siteConfig.favicon} />
     <link rel="manifest" href={siteConfig.manifest} />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    {siteConfig.fonts.map(fontUrl => (
-      <link href={fontUrl} rel="stylesheet" />
-    ))}
+    {/* Both families resolve to a single variable-font file per style; preload the normal-style file only */}
+    <Font cssVariable="--font-unbounded" preload={[{ style: 'normal' }]} />
+    <Font cssVariable="--font-instrument-sans" preload={[{ style: 'normal' }]} />
     <title>{siteConfig.name}</title>
     <meta name="description" content={siteConfig.description} />
     <meta name="keywords" content={siteConfig.keywords.join(', ')} />

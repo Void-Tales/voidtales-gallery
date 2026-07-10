@@ -11,7 +11,6 @@
  * @property {string} ogImage - Path to the Open Graph image for social media previews.
  * @property {string} author - Name of the site creator or maintainer.
  * @property {string[]} keywords - Array of keywords for SEO and meta tags.
- * @property {string[]} fonts - Array of font URLs to be loaded for the site.
  * @property {string} manifest - Path to the web app manifest file.
  * @property {string} favicon - Path to the site favicon.
  * @property {Object} hero - Configuration for the homepage hero section.
@@ -43,17 +42,6 @@ export const siteConfig = {
   
   // Keywords: Array of keywords for SEO and meta tags
   keywords: ['photo gallery', 'Astro', 'VoidTales', 'images', 'modern web'],
-
-  // Fonts: Array of font URLs to be loaded for the site
-  fonts: [
-    'https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Instrument+Sans:wght@400;500;600&display=swap',
-  ],
-
-  // Head font family for the site
-  fontFamilyHead: "'Unbounded', system-ui, sans-serif",
-
-  // Main font family for the site
-  fontFamily: "'Instrument Sans', system-ui, sans-serif",
 
   // Paths to manifest and favicon files in the public directory
   manifest: '/manifest.json',
