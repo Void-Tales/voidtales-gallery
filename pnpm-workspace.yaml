@@ -1,0 +1,6 @@
+# pnpm >=10 fuehrt Build-Skripte von Abhaengigkeiten nicht mehr ungefragt aus und
+# bricht sonst mit ERR_PNPM_IGNORED_BUILDS ab. sharp braucht seinen Build fuer
+# gen:thumbs, esbuild fuer den Astro-Build.
+allowBuilds:
+  esbuild: true
+  sharp: true
