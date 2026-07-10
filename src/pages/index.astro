@@ -60,15 +60,9 @@ const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
           var isDark = saved === 'dark' || !saved;
           document.documentElement.classList.toggle('dark', isDark);
           document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-          document.documentElement.style.visibility = 'visible';
-        } catch(e) {
-          document.documentElement.style.visibility = 'visible';
-        }
+        } catch(e) {}
       })();
     </script>
-    <style>
-      html { visibility: hidden; }
-    </style>
   </head>
   <body>
     <Header />
