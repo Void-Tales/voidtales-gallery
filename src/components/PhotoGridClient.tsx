@@ -1,7 +1,7 @@
-import { useEffect, useState, useRef } from "preact/hooks";
 import GLightbox from "glightbox";
 import "glightbox/dist/css/glightbox.css";
-import { siteConfig } from "../config/site.js";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { distributeColumns } from "../utils/distributeColumns.js";
 import { sortPhotos } from "../utils/sortPhotos.js";
 
 declare global {
@@ -13,68 +13,130 @@ declare global {
 type Photo = {
   id: string;
   imageUrl: string;
-  thumbPath?: string;
+  thumbBase: string;
+  ratio: number;
+  width?: number | null;
+  height?: number | null;
   title?: string;
   caption?: string;
   author?: string;
   body?: string;
+  date?: string;
 };
 
+type Tile = Photo & { index: number };
+
 const BATCH_SIZE = 10;
+const INITIAL_COUNT = 20;
+const EAGER_COUNT = 6;
+const PRIORITY_COUNT = 3;
+const MAX_RETRIES = 2;
+const MAX_STAGGER = 12;
+const STAGGER_STEP = 0.05;
+const FALLBACK_RATIO = 16 / 9;
+
+function columnsForWidth() {
+  if (typeof window === "undefined") return 3;
+  if (window.matchMedia("(min-width: 1000px)").matches) return 3;
+  if (window.matchMedia("(min-width: 640px)").matches) return 2;
+  return 1;
+}
+
+function slideTitle(photo: Photo) {
+  return photo.caption?.trim() || photo.body?.trim() || photo.title?.trim() || "";
+}
+
+function Loader({ label }: { label: string }) {
+  return (
+    <div class="photo-grid-loader">
+      <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true">
+        <circle
+          cx="24"
+          cy="24"
+          r="20"
+          stroke="currentColor"
+          strokeWidth="3"
+          fill="none"
+          strokeDasharray="100"
+          strokeDashoffset="60"
+        >
+          <animateTransform
+            attributeName="transform"
+            type="rotate"
+            from="0 24 24"
+            to="360 24 24"
+            dur="1s"
+            repeatCount="indefinite"
+          />
+        </circle>
+      </svg>
+      <span>{label}</span>
+    </div>
+  );
+}
 
 export default function PhotoGridClient({
-  photos,
   staffAuthors,
   ariaLabelPrefix,
 }: {
-  photos?: Photo[];
   staffAuthors?: string[];
   ariaLabelPrefix?: string;
 }) {
   const [originalPhotos, setOriginalPhotos] = useState<Photo[]>([]);
-  const [loadedPhotos, setLoadedPhotos] = useState<Photo[]>([]);
   const [sortOption, setSortOption] = useState(getInitialSort());
+  const [shuffleNonce, setShuffleNonce] = useState(0);
   const [loading, setLoading] = useState(true);
   const [flashing, setFlashing] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(20);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [pendingBatch, setPendingBatch] = useState(false);
   const [pendingHashId, setPendingHashId] = useState<string | null>(null);
   const [lightboxReady, setLightboxReady] = useState(false);
   const [gridKey, setGridKey] = useState(0);
-  const [imageLoadStates, setImageLoadStates] = useState<Record<string, 'loading' | 'loaded' | 'error'>>({});
+  const [cols, setCols] = useState(columnsForWidth);
+  const [retries, setRetries] = useState<Record<string, number>>({});
+
+  // Derived, not state: if `sortOption` and the sorted list could disagree for even
+  // one render, the entrance delays would freeze against the pre-sort order.
+  // `shuffleNonce` is a dependency only so re-picking "random" re-shuffles.
+  const loadedPhotos = useMemo(
+    () => sortPhotos(originalPhotos, sortOption),
+    [originalPhotos, sortOption, shuffleNonce],
+  );
+
   const sentinelRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  // Entrance state lives in refs on purpose: a re-render must never restart or
+  // cut off a running card-in animation.
+  const batchStartRef = useRef(0);
+  const delaysRef = useRef(new Map<string, number>());
+  const revealedRef = useRef(new Set<string>());
+  const imgLoadedRef = useRef(new Set<string>());
 
-  // Image load handlers
-  const handleImageLoad = (photoId: string) => {
-    setImageLoadStates(prev => ({ ...prev, [photoId]: 'loaded' }));
-    // Add loaded class to parent .photo container
-    const img = document.querySelector(`img[data-photo-id="${photoId}"]`);
-    if (img) {
-      const photoContainer = img.closest('.photo');
-      if (photoContainer) {
-        photoContainer.classList.add('loaded');
-      }
-      img.classList.add('loaded');
-    }
-  };
+  function resetEntranceState() {
+    batchStartRef.current = 0;
+    delaysRef.current.clear();
+    revealedRef.current.clear();
+    imgLoadedRef.current.clear();
+  }
 
-  const handleImageError = (photoId: string) => {
-    setImageLoadStates(prev => ({ ...prev, [photoId]: 'error' }));
-    // Retry loading after delay
-    setTimeout(() => retryImageLoad(photoId), 2000);
-  };
+  // Delay is computed once per card and then frozen, so later renders keep it stable.
+  function delayFor(id: string, index: number) {
+    const known = delaysRef.current.get(id);
+    if (known !== undefined) return known;
+    const offset = Math.min(Math.max(index - batchStartRef.current, 0), MAX_STAGGER);
+    const delay = offset * STAGGER_STEP;
+    delaysRef.current.set(id, delay);
+    return delay;
+  }
 
-  const retryImageLoad = (photoId: string) => {
-    const img = document.querySelector(`img[data-photo-id="${photoId}"]`);
-    if (img instanceof HTMLImageElement) {
-      setImageLoadStates(prev => ({ ...prev, [photoId]: 'loading' }));
-      // Force reload by adding timestamp
-      const src = img.src.split('?')[0];
-      img.src = `${src}?retry=${Date.now()}`;
-    }
-  };
+  function handleImageError(id: string, attempt: number) {
+    // Bump the retry counter, which re-renders with a `?r=n` cache-buster on src *and*
+    // srcset — mutating img.src alone is a no-op while srcset wins the candidate pick.
+    const bump = () => setRetries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+    if (attempt >= MAX_RETRIES) bump();
+    else setTimeout(bump, 2000);
+  }
 
   // Show notification overlay inside GLightbox
   function showNotification(message: string, type: "success" | "error") {
@@ -94,6 +156,7 @@ export default function PhotoGridClient({
   }
 
   // Add custom share and view buttons to GLightbox
+  // biome-ignore lint/suspicious/noExplicitAny: GLightbox has no public type for currentIndex
   function addCustomButtonsToContainer(lightbox: any) {
     document.querySelectorAll(".custom-glightbox-btns").forEach((el) => el.remove());
 
@@ -105,9 +168,8 @@ export default function PhotoGridClient({
 
       // Share button: copies direct link to current image with its unique ID
       const shareBtn = document.createElement("button");
-      shareBtn.className = "glightbox-share-btn";
-      shareBtn.innerHTML =
-        `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`;
+      shareBtn.className = "glightbox-btn glightbox-share-btn";
+      shareBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`;
       shareBtn.title = "Share";
       shareBtn.onclick = (event) => {
         event.stopPropagation();
@@ -123,22 +185,21 @@ export default function PhotoGridClient({
         const photoObj = slideIndex >= 0 ? loadedPhotos[slideIndex] : undefined;
         const photoId = photoObj?.id || "";
 
-        const pageUrl = window.location.origin + window.location.pathname +
-          (photoId ? `#img-${photoId}` : "");
+        const pageUrl =
+          window.location.origin + window.location.pathname + (photoId ? `#img-${photoId}` : "");
 
         try {
           navigator.clipboard.writeText(pageUrl);
           showNotification("Link copied! Share this to open the image in lightbox.", "success");
         } catch {
-          showNotification("Failed to copy link. Please copy manually: " + pageUrl, "error");
+          showNotification(`Failed to copy link. Please copy manually: ${pageUrl}`, "error");
         }
       };
 
       // View original button: opens the original image in a new tab
       const viewBtn = document.createElement("button");
-      viewBtn.className = "glightbox-view-btn";
-      viewBtn.innerHTML =
-        `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+      viewBtn.className = "glightbox-btn glightbox-view-btn";
+      viewBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
       viewBtn.title = "View original";
       viewBtn.onclick = (event) => {
         event.stopPropagation();
@@ -166,26 +227,33 @@ export default function PhotoGridClient({
   async function loadAndSetPhotos() {
     setLoading(true);
     setFlashing(true);
-    setLoadedPhotos([]);
+    setOriginalPhotos([]);
     setTimeout(() => setFlashing(false), 200);
     try {
       // @ts-ignore
       const { default: loadImages } = await import("../../scripts/load-images.js");
       const loaded = await loadImages();
-      const mapped = loaded.map((img: any) => ({
+      // biome-ignore lint/suspicious/noExplicitAny: raw images.json entries
+      const mapped: Photo[] = loaded.map((img: any) => ({
         id: img.id,
         imageUrl: img.imageUrl,
-        thumbPath: `/images/thumbs/${img.id}${img.isDefault ? '-default' : ''}-400.webp`,
+        thumbBase: `/images/thumbs/${img.id}${img.isDefault ? "-default" : ""}`,
+        width: img.width || null,
+        height: img.height || null,
+        // Fallback covers cached images.json files written before width/height existed.
+        ratio: img.width && img.height ? img.width / img.height : FALLBACK_RATIO,
         title: img.title || img.id,
-        caption: img.caption || '',
-        author: img.author || '',
-        body: img.body || '',
+        caption: img.caption || "",
+        author: img.author || "",
+        body: img.body || "",
         date: img.date,
       }));
+      resetEntranceState();
+      setRetries({});
       setOriginalPhotos(mapped);
-      setVisibleCount(20);
+      setVisibleCount(INITIAL_COUNT);
     } catch (err) {
-      console.error('[PhotoGridClient] Error loading photos:', err);
+      console.error("[PhotoGridClient] Error loading photos:", err);
     }
     setLoading(false);
   }
@@ -195,31 +263,36 @@ export default function PhotoGridClient({
   }, []);
 
   useEffect(() => {
-    const handleSort = (e: CustomEvent) => {
-      setSortOption(e.detail.sortOption);
-      setVisibleCount(20);
-      setPendingBatch(false);
-      setIsLoadingMore(false);
-      setGridKey(prev => prev + 1);
-
-      // Wenn random gewählt wurde, originalPhotos neu mischen!
-      if (e.detail.sortOption === "random") {
-        setLoadedPhotos(sortPhotos([...originalPhotos], "random"));
-      }
+    const update = () => setCols(columnsForWidth());
+    const queries = [
+      window.matchMedia("(min-width: 1000px)"),
+      window.matchMedia("(min-width: 640px)"),
+    ];
+    for (const q of queries) q.addEventListener("change", update);
+    return () => {
+      for (const q of queries) q.removeEventListener("change", update);
     };
-    window.addEventListener('sortGallery', handleSort as EventListener);
-    return () => window.removeEventListener('sortGallery', handleSort as EventListener);
-  }, [originalPhotos]);
+  }, []);
 
   useEffect(() => {
-    if (originalPhotos.length === 0) return;
-      setLoadedPhotos(sortPhotos(originalPhotos, sortOption));
-  }, [originalPhotos, sortOption]);
+    const handleSort = (e: CustomEvent) => {
+      resetEntranceState();
+      setSortOption(e.detail.sortOption);
+      setVisibleCount(INITIAL_COUNT);
+      setPendingBatch(false);
+      setIsLoadingMore(false);
+      setGridKey((prev) => prev + 1);
+      // Re-picking "random" has to produce a new shuffle.
+      if (e.detail.sortOption === "random") setShuffleNonce((prev) => prev + 1);
+    };
+    window.addEventListener("sortGallery", handleSort as EventListener);
+    return () => window.removeEventListener("sortGallery", handleSort as EventListener);
+  }, []);
 
   useEffect(() => {
     const handleRefresh = () => loadAndSetPhotos();
-    window.addEventListener('refreshGallery', handleRefresh);
-    return () => window.removeEventListener('refreshGallery', handleRefresh);
+    window.addEventListener("refreshGallery", handleRefresh);
+    return () => window.removeEventListener("refreshGallery", handleRefresh);
   }, []);
 
   // Hash: Check on mount if we need to open a specific image
@@ -246,13 +319,18 @@ export default function PhotoGridClient({
           setIsLoadingMore(true);
           setPendingBatch(true);
           setTimeout(() => {
-            setVisibleCount((prev) => Math.min(prev + BATCH_SIZE, loadedPhotos.length));
+            setVisibleCount((prev) => {
+              // New cards stagger relative to the batch they arrived in, not to a
+              // modulo of their global index.
+              batchStartRef.current = prev;
+              return Math.min(prev + BATCH_SIZE, loadedPhotos.length);
+            });
             setIsLoadingMore(false);
             setPendingBatch(false);
-          }, 900); // Loader für 900ms sichtbar
+          }, 150);
         }
       },
-      { rootMargin: "200px" }
+      { rootMargin: "200px" },
     );
     observerRef.current.observe(sentinelRef.current);
 
@@ -261,13 +339,22 @@ export default function PhotoGridClient({
     };
   }, [isLoadingMore, pendingBatch, visibleCount, loadedPhotos.length]);
 
-  // GLightbox: always use loadedPhotos
+  const visiblePhotos = loadedPhotos.slice(0, visibleCount);
+
+  // GLightbox: driven by an explicit element list, because the DOM order of the
+  // masonry columns no longer matches the sort order.
   useEffect(() => {
-    if (loadedPhotos.length === 0) return;
+    if (visiblePhotos.length === 0) return;
     setLightboxReady(false);
     if (window._glightboxInstance) window._glightboxInstance.destroy();
     const lightbox = GLightbox({
-      selector: ".photo",
+      // GLightbox types `elements` as the empty tuple `[]`, so the cast is unavoidable.
+      elements: visiblePhotos.map((photo) => ({
+        href: photo.imageUrl,
+        type: "image",
+        title: slideTitle(photo),
+        description: `Author: ${photo.author}`,
+      })) as unknown as [],
       touchNavigation: true,
       zoomable: false,
       openEffect: "fade",
@@ -292,7 +379,7 @@ export default function PhotoGridClient({
   // Hash-Open: Open only once and only if GLightbox is ready and not already open
   useEffect(() => {
     if (!pendingHashId || !lightboxReady) return;
-    const index = loadedPhotos.findIndex(photo => photo.id === pendingHashId);
+    const index = loadedPhotos.findIndex((photo) => photo.id === pendingHashId);
     if (
       index >= 0 &&
       index < visibleCount &&
@@ -309,104 +396,113 @@ export default function PhotoGridClient({
         }, 200);
       }
     } else if (index >= visibleCount && index >= 0) {
-      setVisibleCount(index + 1);
+      setVisibleCount((prev) => {
+        batchStartRef.current = prev;
+        return index + 1;
+      });
     }
   }, [pendingHashId, loadedPhotos, visibleCount, lightboxReady]);
 
   function isStaffPhoto(photo: Photo) {
-    return staffAuthors?.some(
-      staff => staff.trim().toLowerCase() === (photo.author?.trim().toLowerCase() || "")
-    ) ?? false;
+    return (
+      staffAuthors?.some(
+        (staff) => staff.trim().toLowerCase() === (photo.author?.trim().toLowerCase() || ""),
+      ) ?? false
+    );
   }
 
-  const loaderStyle = {
-    fontFamily: siteConfig.fontFamily,
-    gridColumn: "1 / -1",
-    order: 9999, // Ensures loader always appears after all photos, even during state updates
-  };
+  function renderTile(photo: Tile) {
+    const attempt = retries[photo.id] ?? 0;
+    const failed = attempt > MAX_RETRIES;
+    const bust = attempt > 0 ? `?r=${attempt}` : "";
+    const src = `${photo.thumbBase}-400.webp${bust}`;
+    const staff = isStaffPhoto(photo);
+    const classes = [
+      "photo",
+      staff && "staff-photo",
+      revealedRef.current.has(photo.id) && "shown",
+      imgLoadedRef.current.has(photo.id) && "loaded",
+      failed && "is-error",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return (
+      <a
+        key={photo.id}
+        class={classes}
+        style={{
+          aspectRatio: `${photo.ratio}`,
+          "--card-delay": `${delayFor(photo.id, photo.index)}s`,
+        }}
+        href={photo.imageUrl}
+        data-id={photo.id}
+        aria-label={`${ariaLabelPrefix} ${photo.title}`}
+        onClick={(event) => {
+          event.preventDefault();
+          window._glightboxInstance?.openAt(photo.index);
+        }}
+        onAnimationEnd={() => revealedRef.current.add(photo.id)}
+      >
+        {failed ? (
+          <span class="photo-unavailable">Image unavailable</span>
+        ) : (
+          <img
+            src={src}
+            srcSet={[200, 400, 800]
+              .map((w) => `${photo.thumbBase}-${w}.webp${bust} ${w}w`)
+              .join(", ")}
+            sizes="(max-width: 639px) 100vw, (max-width: 999px) 48vw, 370px"
+            width={photo.width ?? undefined}
+            height={photo.height ?? undefined}
+            alt={photo.title}
+            loading={photo.index < EAGER_COUNT ? "eager" : "lazy"}
+            fetchPriority={photo.index < PRIORITY_COUNT ? "high" : "auto"}
+            decoding="async"
+            onLoad={(event) => {
+              imgLoadedRef.current.add(photo.id);
+              event.currentTarget.closest(".photo")?.classList.add("loaded");
+            }}
+            onError={() => handleImageError(photo.id, attempt)}
+          />
+        )}
+        <span class="photo-caption">
+          <span class="photo-caption-title">{photo.title}</span>
+          {photo.author && <span class="photo-caption-author">{photo.author}</span>}
+        </span>
+        {staff && (
+          <span class="staff-badge" title="Staff member">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <polygon points="12,3 15,10 22,10 17,14 19,21 12,17 5,21 7,14 2,10 9,10" />
+            </svg>
+          </span>
+        )}
+      </a>
+    );
+  }
+
+  const columns = distributeColumns<Tile>(
+    visiblePhotos.map((photo, index) => ({ ...photo, index })),
+    cols,
+  );
 
   return (
     <div>
-      {loading && (
-        <div class="photo-grid-loader" style={loaderStyle}>
-          <svg width="48" height="48" viewBox="0 0 48 48">
-            <circle cx="24" cy="24" r="20" stroke="#888" strokeWidth="4" fill="none" strokeDasharray="100" strokeDashoffset="60">
-              <animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="1s" repeatCount="indefinite"/>
-            </circle>
-          </svg>
-          <span>Loading Gallery ...</span>
-        </div>
-      )}
-      <div
-        key={gridKey}
-        id="photo-grid"
-        class={`grid-container ${flashing ? 'flashing' : ''}`}
-      >
-        {loadedPhotos.slice(0, visibleCount).map((photo, i) => {
-          // Animation für alle sichtbaren Bilder nach Sortierung/Initial-Load
-          const animate = flashing || visibleCount <= BATCH_SIZE || i < visibleCount;
-          return (
-            <a
-              class={`photo${isStaffPhoto(photo) ? " staff-photo" : ""}`}
-              style={animate ? { "--photo-delay": `${(i % BATCH_SIZE) * 0.12}s` } : {}}
-              href={photo.imageUrl}
-              data-gallery="gallery"
-              data-id={photo.id}
-              data-title={
-                photo.caption?.trim()
-                  ? photo.caption
-                  : photo.body?.trim()
-                  ? photo.body
-                  : photo.title?.trim()
-              }
-              data-description={`Author: ${photo.author}`}
-              aria-label={`${ariaLabelPrefix} ${photo.title}`}
-              key={photo.id}
-            >
-              <span class="photo-overlay">{photo.author}</span>
-              <picture>
-                <source
-                  srcSet={`${photo.thumbPath?.replace("-400.webp", "-800.webp")} 2x`}
-                  type="image/webp"
-                />
-                <img
-                  data-photo-id={photo.id}
-                  src={photo.thumbPath}
-                  srcSet={`${photo.thumbPath} 1x, ${photo.thumbPath?.replace("-400.webp", "-800.webp")} 2x`}
-                  alt={photo.title}
-                  loading={animate ? "eager" : "lazy"}
-                  onLoad={() => handleImageLoad(photo.id)}
-                  onError={() => handleImageError(photo.id)}
-                  className={imageLoadStates[photo.id] === 'loaded' ? 'loaded' : ''}
-                />
-              </picture>
-              {isStaffPhoto(photo) && (
-                <span class="staff-badge" title="Staff member">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <polygon points="12,3 15,10 22,10 17,14 19,21 12,17 5,21 7,14 2,10 9,10" />
-                  </svg>
-                </span>
-              )}
-            </a>
-          );
-        })}
-        {isLoadingMore && (
-          <div class="photo-grid-loader" style={loaderStyle}>
-            <svg width="48" height="48" viewBox="0 0 48 48">
-              <circle cx="24" cy="24" r="20" stroke="#888" strokeWidth="4" fill="none" strokeDasharray="100" strokeDashoffset="60">
-                <animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="1s" repeatCount="indefinite"/>
-              </circle>
-            </svg>
-            <span>Loading more images...</span>
+      {loading && <Loader label="Loading Gallery ..." />}
+      <div key={gridKey} id="photo-grid" class={`masonry ${flashing ? "flashing" : ""}`}>
+        {columns.map((column, columnIndex) => (
+          <div class="masonry-col" key={columnIndex}>
+            {column.map(renderTile)}
           </div>
-        )}
-        <div ref={sentinelRef}></div>
+        ))}
       </div>
+      {isLoadingMore && <Loader label="Loading more images..." />}
+      <div ref={sentinelRef} />
     </div>
   );
 }
 
-function getInitialSort(defaultSort: string = "date-desc") {
+function getInitialSort(defaultSort = "date-desc") {
   if (typeof window !== "undefined") {
     const stored = window.localStorage.getItem("gallerySortOption");
     if (stored) return stored;

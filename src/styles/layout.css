@@ -1,97 +1,69 @@
 /* =================== LAYOUT =================== */
 
-/* CSS Variables for Skeleton Loader */
-:root {
-  --skeleton-base: #e0e0e0;
-  --skeleton-shimmer: #f0f0f0;
-}
-
-html.dark {
-  --skeleton-base: #2a2a2a;
-  --skeleton-shimmer: #3a3a3a;
-}
-
-.container {
-  max-width: 1100px;
-  margin: 28px auto;
-  padding: 0 16px;
-  flex: 1;
-}
-
-.grid-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
-  max-width: 80rem;
-  margin: 0 auto;
-  padding: 0 1rem;
-}
-
-/* Background layers, z-index, etc. */
-body > * {
-  position: relative;
-  z-index: 10;
-  background-color: transparent;
-}
-
-header, main, footer, #nav-container {
-  position: relative;
-  z-index: 11;
-  background-color: transparent;
-}
-
-#background {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  width: 100vw;
-  height: 100vh;
-  pointer-events: none;
-  will-change: transform;
-}
-
-html:not(.dark) #background,
-:root[saved-theme='light'] #background,
-:root[data-color-mode='light'] #background,
-html[data-theme='light'] #background {
-  background-color: #f5e0a6e1; /* Fallback color */
-  background:
-    linear-gradient(rgba(241, 241, 241, 0.603), rgba(219, 237, 240, 0.774)),
-    url('/images/index-light-blur.webp') center/cover no-repeat;
-}
-
-html.dark #background,
-:root[saved-theme='dark'] #background,
-:root[data-color-mode='dark'] #background,
-html[data-theme='dark'] #background {
-  background-color: #141314c9; /* Fallback color */
-  background:
-    linear-gradient(rgba(89, 36, 102, 0.267), rgba(24, 24, 49, 0.534)),
-    url('/images/index-dark-blur.webp') center/cover no-repeat;
-}
-
-/* ========== PAGE STRUCTURE ========== */
-
 body {
-  min-height: 100vh;
+  position: relative;
   display: flex;
   flex-direction: column;
+  isolation: isolate;
+}
+
+/* Backdrop: blurred screenshot, scrim, violet glow (+ starfield in dark).
+   Fades out below the hero so the grid keeps a calm background. */
+body::before {
+  content: '';
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgb(109 40 217 / 8%), transparent 70%),
+    linear-gradient(rgb(241 241 241 / 72%), rgb(219 237 240 / 88%)),
+    url('/images/index-light-blur.webp') center / cover no-repeat;
+  mask-image: linear-gradient(to bottom, #000 0, #000 55dvh, transparent 105dvh);
+  pointer-events: none;
+}
+
+html.dark body::before,
+html[data-theme='dark'] body::before {
+  background:
+    radial-gradient(ellipse 70% 45% at 50% -5%, rgb(167 139 250 / 16%), transparent 70%),
+    radial-gradient(circle 1.2px at 20% 30%, rgb(236 232 246 / 50%) 0 100%, transparent),
+    radial-gradient(circle 1px at 68% 62%, rgb(236 232 246 / 38%) 0 100%, transparent),
+    radial-gradient(circle 1.4px at 75% 15%, rgb(236 232 246 / 44%) 0 100%, transparent),
+    radial-gradient(circle 1px at 12% 84%, rgb(236 232 246 / 32%) 0 100%, transparent),
+    radial-gradient(circle 1.2px at 45% 70%, rgb(236 232 246 / 40%) 0 100%, transparent),
+    radial-gradient(circle 1px at 88% 40%, rgb(236 232 246 / 30%) 0 100%, transparent),
+    linear-gradient(rgb(20 19 20 / 62%), rgb(24 24 49 / 86%)),
+    url('/images/index-dark-blur.webp') center / cover no-repeat;
+  background-repeat: no-repeat, repeat, repeat, repeat, repeat, repeat, repeat, no-repeat, no-repeat;
+  background-size:
+    100% 100%,
+    320px 320px,
+    320px 320px,
+    260px 260px,
+    260px 260px,
+    400px 400px,
+    400px 400px,
+    100% 100%,
+    cover;
 }
 
 .page-wrapper {
-  flex: 1;
   display: flex;
+  flex: 1;
   flex-direction: column;
+}
+
+.container {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+main.container {
+  flex: 1;
+  padding-bottom: var(--space-6);
 }
 
 .footer {
   flex-shrink: 0;
-}
-
-/* ========== FIREFOX-SPECIFIC HEADER OFFSET ========== */
-/* Adjusts Fancybox container margin for Firefox to prevent header overlap */
-@-moz-document url-prefix() {
-  .fancybox__container {
-    margin-top: 80px !important;
-  }
 }

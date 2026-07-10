@@ -32,13 +32,7 @@ function getInitialSort(defaultSort: string): string {
   return defaultSort || "date-desc";
 }
 
-export default function SortSelector({
-  defaultSort = "date-desc",
-  fontFamily,
-}: {
-  defaultSort?: string;
-  fontFamily?: string;
-}) {
+export default function SortSelector({ defaultSort = "date-desc" }: { defaultSort?: string }) {
   const [currentSort, setCurrentSort] = useState(defaultSort);
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -98,9 +92,6 @@ export default function SortSelector({
 
   const currentOption = sortOptions.find(opt => opt.value === currentSort);
 
-  // Set fallback for fontFamily
-  const effectiveFont = fontFamily || "'Asul', sans-serif";
-
   return (
     <div class={`sort-selector ${isOpen ? 'open' : ''}`}>
       <button
@@ -110,8 +101,8 @@ export default function SortSelector({
         aria-label="Sort gallery"
         title="Sort gallery"
       >
-        <span class="sort-icon" style={{ fontFamily: effectiveFont }}>{currentOption?.icon}</span>
-        <span class="sort-label" style={{ fontFamily: effectiveFont }}>{currentOption?.label}</span>
+        <span class="sort-icon">{currentOption?.icon}</span>
+        <span class="sort-label">{currentOption?.label}</span>
         <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d={isOpen ? "M6 9l6 6 6-6" : "M9 6l6 6 6-6"} />
         </svg>
@@ -124,8 +115,8 @@ export default function SortSelector({
               class={`sort-option ${option.value === currentSort ? 'active' : ''}`}
               onClick={() => handleSortChange(option.value)}
             >
-              <span class="sort-icon" style={{ fontFamily: effectiveFont }}>{option.icon}</span>
-              <span class="sort-label" style={{ fontFamily: effectiveFont }}>{option.label}</span>
+              <span class="sort-icon">{option.icon}</span>
+              <span class="sort-label">{option.label}</span>
             </button>
           </li>
         ))}

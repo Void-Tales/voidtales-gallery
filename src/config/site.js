@@ -15,7 +15,9 @@
  * @property {string} manifest - Path to the web app manifest file.
  * @property {string} favicon - Path to the site favicon.
  * @property {Object} hero - Configuration for the homepage hero section.
+ * @property {string} hero.eyebrow - Small caps label above the headline.
  * @property {string} hero.title - Main headline for the hero section.
+ * @property {string} hero.titleAccent - Substring of the title rendered with the accent glow.
  * @property {string} hero.subtitle - Subtitle text for the hero section.
  * @property {string} hero.cta - Call-to-action button text in the hero section.
  * @property {string} hero.ctaLink - URL for the call-to-action button (external link).
@@ -44,16 +46,14 @@ export const siteConfig = {
 
   // Fonts: Array of font URLs to be loaded for the site
   fonts: [
-    'https://fonts.googleapis.com/css2?family=Macondo&family=Macondo+Swash+Caps&display=swap',
-    'https://fonts.googleapis.com/css2?family=Asul:wght@400;700&display=swap',
-    'https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&display=swap'
+    'https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Instrument+Sans:wght@400;500;600&display=swap',
   ],
 
   // Head font family for the site
-  fontFamilyHead: "'Cinzel Decorative', serif",
+  fontFamilyHead: "'Unbounded', system-ui, sans-serif",
 
   // Main font family for the site
-  fontFamily: "'Asul', sans-serif",
+  fontFamily: "'Instrument Sans', system-ui, sans-serif",
 
   // Paths to manifest and favicon files in the public directory
   manifest: '/manifest.json',
@@ -61,7 +61,9 @@ export const siteConfig = {
   
   // Hero section configuration: Defines content for the main hero area on the homepage
   hero: {
+    eyebrow: 'Community Screenshots',  // Small caps label above the headline
     title: 'Void Tales Gallery',  // Main headline for the hero section
+    titleAccent: 'Gallery',  // Part of the title that gets the accent glow
     subtitle: 'The latest images from the world of VoidTales – sorted by date.',  // Subtitle text
     cta: 'To the Portal',  // Call-to-action button text
     ctaLink: 'https://portal.voidtales.win', // 🌐 External link for the button

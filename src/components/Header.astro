@@ -9,23 +9,19 @@ import { navigationLinks } from '../config/navigation.js';
   <div class="site-header-inner container">
     <!-- Brand logo -->
     <div class="brand">
-      <a href="/" class="logo"style={`font-family: ${siteConfig.fontFamily};`}>{siteConfig.name}</a>
+      <a href="/" class="logo">{siteConfig.name}</a>
     </div>
 
     <!-- Main navigation links -->
     <nav class="header-nav" role="navigation" aria-label="Main navigation">
       {navigationLinks.map(link => (
-        <a href={link.href} target="_blank" class="nav-link" style={`font-family: ${siteConfig.fontFamily};`}>{link.label}</a>
+        <a href={link.href} target="_blank" class="nav-link">{link.label}</a>
       ))}
     </nav>
 
     <!-- Header actions: desktop only (SortSelector hidden on mobile via CSS) -->
     <div class="header-actions">
-      <SortSelector
-        defaultSort={siteConfig.defaultSort}
-        fontFamily={siteConfig.fontFamily}
-        client:load
-      />
+      <SortSelector defaultSort={siteConfig.defaultSort} client:load />
       <RefreshButton />
       <button
         id="mobile-menu-toggle"

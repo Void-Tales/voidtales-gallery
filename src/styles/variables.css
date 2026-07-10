@@ -1,37 +1,73 @@
-/* =================== VARIABLES =================== */
+/* =================== DESIGN TOKENS =================== */
 
-/* Light mode variables */
+/* One scale, two themes. Dark is the design target, light is derived. */
+
 :root {
-  --gap: 6px; /* Spacing between elements */
-  --bg: #f9fafb; /* Light mode background */
-  --text: #111827; /* Primary text color */
-  --muted: #374151; /* Muted text color */
-  --surface: rgba(255, 255, 255, 0.6); /* Semi-transparent surface */
-  --surface-strong: #ffffff; /* Strong surface color */
-  --btn-border: rgba(0, 0, 0, 0.06); /* Button border color */
-  --accent: #6b7280; /* Elegant gray for consistency */
-  --shadow: rgba(2, 6, 23, 0.08); /* Shadow color */
-  /* Footer variables */
-  --color-bg-secondary: hsl(0, 0%, 10%); /* Secondary background */
-  --color-text-secondary: hsl(0, 0%, 70%); /* Secondary text */
-  --color-border: hsl(0, 0%, 20%); /* Border color */
+  /* Typography */
+  --font-display: 'Unbounded', system-ui, sans-serif;
+  --font-body: 'Instrument Sans', system-ui, sans-serif;
+
+  /* Light theme surface + ink */
+  --bg: #f6f5fa;
+  --bg-raised: #fff;
+  --text: #17131f;
+  --muted: #5b5468;
+  --border: rgb(23 19 31 / 12%);
+  --accent: #6d28d9;
+  --accent-ink: #fff;
+  --accent-soft: rgb(109 40 217 / 10%);
+  --glow: transparent;
+
+  /* Skeleton */
+  --skeleton-base: rgb(23 19 31 / 6%);
+  --skeleton-shimmer: rgb(23 19 31 / 11%);
+
+  /* Elevation */
+  --shadow-1: 0 1px 2px rgb(23 19 31 / 6%), 0 2px 6px rgb(23 19 31 / 6%);
+  --shadow-2: 0 4px 12px rgb(23 19 31 / 10%), 0 16px 40px rgb(23 19 31 / 12%);
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 18px;
+  --radius-full: 999px;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2.5rem;
+
+  /* Layout */
+  --container: 72rem;
+  --header-h: 4.5rem;
+
+  /* Depth */
+  --z-grid: 1;
+  --z-header: 50;
+  --z-menu: 60;
+
+  /* Motion */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur: 0.5s;
+  --dur-fast: 0.2s;
 }
 
-/* Dark mode overrides */
 html.dark,
-:root[saved-theme='dark'],
-:root[data-color-mode='dark'],
 html[data-theme='dark'] {
-  --bg: #060612; /* Dark mode background */
-  --text: #f8fafc; /* Primary text color in dark mode */
-  --muted: #cbd5e1; /* Muted text color in dark mode */
-  --surface: rgba(0, 0, 0, 0.35); /* Semi-transparent surface in dark mode */
-  --surface-strong: rgba(0, 0, 0, 0.5); /* Strong surface color in dark mode */
-  --btn-border: rgba(255, 255, 255, 0.06); /* Button border color in dark mode */
-  --accent: #9ca3af; /* Lighter gray for dark mode */
-  --shadow: rgba(255, 255, 255, 0.03); /* Shadow color in dark mode */
-  /* Footer variables */
-  --color-bg-secondary: hsl(0, 0%, 10%); /* Secondary background */
-  --color-text-secondary: hsl(0, 0%, 70%); /* Secondary text */
-  --color-border: hsl(0, 0%, 20%); /* Border color */
+  --bg: #0a0714;
+  --bg-raised: #140f22;
+  --text: #ece8f6;
+  --muted: #9b93b3;
+  --border: rgb(236 232 246 / 12%);
+  --accent: #a78bfa;
+  --accent-ink: #0a0714;
+  --accent-soft: rgb(167 139 250 / 14%);
+  --glow: rgb(167 139 250 / 45%);
+  --skeleton-base: rgb(236 232 246 / 4%);
+  --skeleton-shimmer: rgb(236 232 246 / 9%);
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-2: 0 8px 24px rgb(0 0 0 / 55%), 0 2px 8px rgb(0 0 0 / 40%);
 }

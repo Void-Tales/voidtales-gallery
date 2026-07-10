@@ -11,14 +11,14 @@ const currentYear = new Date().getFullYear();
   <div class="footer-container">
     {/* Site logo and link to homepage */}
     <div class="footer-logo">
-      <a href="/" style={`font-family: ${siteConfig.fontFamily};`}>{siteConfig.name}</a>
+      <a href="/">{siteConfig.name}</a>
     </div>
     {/* Footer navigation links */}
     <nav class="footer-nav">
       <ul>
         {navigationLinks.map(link => (
           <li>
-            <a href={link.href} target="_blank" rel="noopener noreferrer" style={`font-family: ${siteConfig.fontFamily};`}>
+            <a href={link.href} target="_blank" rel="noopener noreferrer">
               {link.label}
             </a>
           </li>
