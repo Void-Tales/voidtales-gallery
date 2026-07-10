@@ -71,6 +71,12 @@ a {
   text-decoration: none;
 }
 
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: var(--header-h);
+  scrollbar-gutter: stable;
+}
+
 :focus-visible {
   border-radius: var(--radius-sm);
   outline: 2px solid var(--accent);

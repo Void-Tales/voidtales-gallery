@@ -3,6 +3,18 @@
 /* The !important declarations here fight GLightbox's own inline/library styles.
    This is the only stylesheet allowed to use them. */
 
+/* Scroll-Lock nur über html; body darf kein Clip-Container werden,
+   sonst verliert der Sticky-Header seinen Viewport-Bezug. */
+body.glightbox-open {
+  overflow: visible !important;
+}
+
+/* scrollbar-gutter: stable macht GLightbox' Margin-Kompensation obsolet —
+   sie würde jetzt selbst einen Shift erzeugen. */
+body.gscrollbar-fixer {
+  margin-right: 0 !important;
+}
+
 .gslide-description {
   max-width: 90vw !important;
   margin: 0 auto !important;
