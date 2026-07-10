@@ -2,6 +2,6 @@
   "extends": ["stylelint-config-standard", "stylelint-config-astro"],
   "ignoreFiles": ["dist/**", "node_modules/**", ".astro/**"],
   "rules": {
-    "property-no-vendor-prefix": [true, { "ignoreProperties": ["backdrop-filter"] }]
+    "property-no-vendor-prefix": [true, { "ignoreProperties": ["backdrop-filter", "-webkit-backdrop-filter"] }]
   }
 }
