@@ -10,7 +10,6 @@
  * @property {string} url - Base URL of the site, used for canonical links and sitemaps.
  * @property {string} ogImage - Path to the Open Graph image for social media previews.
  * @property {string} author - Name of the site creator or maintainer.
- * @property {string[]} keywords - Array of keywords for SEO and meta tags.
  * @property {string} manifest - Path to the web app manifest file.
  * @property {string} favicon - Path to the site favicon.
  * @property {Object} hero - Configuration for the homepage hero section.
@@ -39,9 +38,6 @@ export const siteConfig = {
   
   // Site author: Name of the site creator or maintainer
   author: 'inventory69',
-  
-  // Keywords: Array of keywords for SEO and meta tags
-  keywords: ['photo gallery', 'Astro', 'VoidTales', 'images', 'modern web'],
 
   // Paths to manifest and favicon files in the public directory
   manifest: '/manifest.json',

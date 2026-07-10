@@ -4,7 +4,6 @@ export const siteConfig: {
   url: string;
   ogImage: string;
   author: string;
-  keywords: string[];
   manifest: string;
   favicon: string;
   hero: {

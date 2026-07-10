@@ -21,6 +21,9 @@ import Footer from '../components/Footer.astro';
 const { title, titleAccent } = siteConfig.hero;
 const hasAccent = Boolean(titleAccent) && title.includes(titleAccent);
 const [beforeAccent, afterAccent] = hasAccent ? title.split(titleAccent) : [title, ''];
+
+// Absolute URL: relative og:image paths are ignored by Discord/Twitter link previews.
+const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
 ---
 
 <!doctype html>
@@ -35,13 +38,19 @@ const [beforeAccent, afterAccent] = hasAccent ? title.split(titleAccent) : [titl
     <Font cssVariable="--font-instrument-sans" preload={[{ style: 'normal' }]} />
     <title>{siteConfig.name}</title>
     <meta name="description" content={siteConfig.description} />
-    <meta name="keywords" content={siteConfig.keywords.join(', ')} />
     <meta name="author" content={siteConfig.author} />
+    <meta name="theme-color" content="#0a0714" />
+    <link rel="canonical" href={siteConfig.url} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteConfig.name} />
     <meta property="og:title" content={siteConfig.name} />
     <meta property="og:description" content={siteConfig.description} />
-    <meta property="og:image" content={siteConfig.ogImage} />
+    <meta property="og:image" content={ogImageUrl} />
     <meta property="og:url" content={siteConfig.url} />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={siteConfig.name} />
+    <meta name="twitter:description" content={siteConfig.description} />
+    <meta name="twitter:image" content={ogImageUrl} />
     <!-- Set theme on initial load -->
     <script>
       // Set theme based only on localStorage, default is dark
