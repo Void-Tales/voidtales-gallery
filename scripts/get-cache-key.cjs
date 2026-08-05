@@ -30,7 +30,9 @@ async function getFileNames(url, regex) {
     return files.sort().join('|');
   } catch (error) {
     console.error(`Error fetching files from ${url}:`, error.message);
-    return '';
+    // Kein stiller Fallback-Key: der waere konstant, wuerde den alten Cache
+    // restoren und eine unvollstaendige Galerie gruen deployen.
+    process.exit(1);
   }
 }
 
@@ -46,5 +48,5 @@ async function getFileNames(url, regex) {
 
   console.log(`Generated cache key: ${hash}`);
 
-  fs.writeFileSync(process.env.GITHUB_OUTPUT, `cache-key=${hash}`);
+  fs.appendFileSync(process.env.GITHUB_OUTPUT, `cache-key=${hash}\n`);
 })();

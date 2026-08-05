@@ -49,10 +49,11 @@ async function fetchDirectoryListing(url) {
     }
   }
 
-  // If neither URL works, skip
+  // Keine erreichbare Quelle = Abbruch. Weiterbauen hiesse eine Galerie ohne
+  // die neuen Bilder zu deployen, und zwar mit gruenem Haekchen.
   if (!html) {
-    console.warn('No reachable image source found. Skipping download.');
-    process.exit(0);
+    console.error('No reachable image source found - aborting instead of deploying a stale gallery.');
+    process.exit(1);
   }
 
   // Extract image files from HTML
