@@ -278,6 +278,12 @@ export default function PhotoGridClient({
       setRetries({});
       setOriginalPhotos(mapped);
       setVisibleCount(INITIAL_COUNT);
+
+      // PhotoGrid.astro rendert denselben Grid statisch vor - sonst enthaelt das
+      // HTML wegen client:only kein einziges <img> und Crawler sehen eine leere
+      // Seite. Ab hier uebernimmt diese Komponente. Erst nach setOriginalPhotos
+      // entfernen, sonst klafft dazwischen eine leere Seite.
+      document.querySelector("[data-static-grid]")?.remove();
     } catch (err) {
       console.error("[PhotoGridClient] Error loading photos:", err);
     }

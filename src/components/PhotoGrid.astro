@@ -1,11 +1,118 @@
 ---
-import PhotoGridClient from "./PhotoGridClient";
-import { siteConfig } from "../config/site.js";
+import photos from '../../public/images.json';
+import PhotoGridClient from './PhotoGridClient';
+import { siteConfig } from '../config/site.js';
+import { distributeColumns } from '../utils/distributeColumns';
+import { sortPhotos } from '../utils/sortPhotos.js';
+
+// Der Grid wird hier zusaetzlich statisch gerendert, weil die Preact-Variante
+// `client:only` ist: serverseitig entstand bislang **kein einziges** <img>, und
+// damit sah Google auf gallery.voidtales.win eine leere Seite. Die Screenshots
+// waren fuer die Bildersuche schlicht nicht vorhanden.
+//
+// Der statische Grid ist kein Fallback, sondern der erste Frame: er zeigt
+// echte Bilder statt der Skeleton-Kacheln. Sobald die Preact-Komponente ihre
+// Daten hat, entfernt sie ihn (siehe unten, `data-static-grid`).
+//
+// Bewusst KEIN client:load: die Komponente wuerde sonst gegen dieses Markup
+// hydrieren muessen, und ihr Zustand (Sortierung, Batching, Lightbox-Index)
+// entsteht erst im Browser. Zwei getrennte Baeume sind hier ehrlicher als eine
+// erzwungene Uebereinstimmung.
+
+// images.json schreibt die CI (copy-original-images.cjs) vor dem Astro-Build;
+// zur Laufzeit holt die Preact-Komponente dieselbe Datei nochmal per fetch, um
+// den Refresh-Knopf zu bedienen. Hier reicht der Build-Zeit-Stand.
+// Direktimport statt fs: tsconfig laesst node-Typen bewusst draussen, und Vite
+// laedt JSON von jedem Pfad im Projekt.
+
+const FALLBACK_RATIO = 16 / 9;
+const EAGER_COUNT = 6;
+
+// Dieselbe Standardsortierung, die die Komponente beim Start setzt.
+const tiles = sortPhotos(photos, 'date-desc').map((img: any, index: number) => ({
+	id: img.id,
+	imageUrl: img.imageUrl,
+	thumbBase: `/images/thumbs/${img.id}${img.isDefault ? '-default' : ''}`,
+	width: img.width ?? null,
+	height: img.height ?? null,
+	ratio: img.width && img.height ? img.width / img.height : FALLBACK_RATIO,
+	title: img.title || img.id,
+	caption: img.caption || '',
+	author: img.author || '',
+	date: img.date,
+	index,
+}));
+
+const cols = 3;
+const columns = distributeColumns(tiles, cols);
+
+// Eine ImageGallery mit allen Bildern: erst dadurch versteht ein Crawler die
+// Seite als Bildersammlung und nicht als Textseite mit Grafiken.
+const schema = {
+	'@context': 'https://schema.org',
+	'@type': 'ImageGallery',
+	'@id': `${siteConfig.url}/#gallery`,
+	name: siteConfig.name,
+	description: siteConfig.description,
+	url: siteConfig.url,
+	numberOfItems: tiles.length,
+	associatedMedia: tiles.slice(0, 100).map((photo) => ({
+		'@type': 'ImageObject',
+		contentUrl: new URL(photo.imageUrl, siteConfig.url).toString(),
+		thumbnailUrl: new URL(`${photo.thumbBase}-800.webp`, siteConfig.url).toString(),
+		name: photo.title,
+		...(photo.caption ? { caption: photo.caption } : {}),
+		...(photo.author ? { creditText: photo.author } : {}),
+		...(photo.date ? { uploadDate: new Date(photo.date).toISOString() } : {}),
+		...(photo.width ? { width: photo.width } : {}),
+		...(photo.height ? { height: photo.height } : {}),
+	})),
+};
 ---
 
-<!-- Render the photo grid using the Preact client component -->
+{
+	tiles.length > 0 && (
+		<div data-static-grid>
+			<div class="masonry">
+				{columns.map((column) => (
+					<div class="masonry-col">
+						{column.map((photo) => (
+							<a
+								class="photo loaded"
+								style={`aspect-ratio: ${photo.ratio}`}
+								href={photo.imageUrl}
+								data-id={photo.id}
+								aria-label={`Open fullscreen of ${photo.title}`}
+							>
+								<img
+									src={`${photo.thumbBase}-400.webp`}
+									srcset={[200, 400, 800]
+										.map((w) => `${photo.thumbBase}-${w}.webp ${w}w`)
+										.join(', ')}
+									sizes="(max-width: 639px) 100vw, (max-width: 999px) 48vw, 370px"
+									width={photo.width ?? undefined}
+									height={photo.height ?? undefined}
+									alt={photo.caption || photo.title}
+									loading={photo.index < EAGER_COUNT ? 'eager' : 'lazy'}
+									decoding="async"
+								/>
+								<span class="photo-caption">
+									<span class="photo-caption-title">{photo.title}</span>
+									{photo.author && <span class="photo-caption-author">{photo.author}</span>}
+								</span>
+							</a>
+						))}
+					</div>
+				))}
+			</div>
+		</div>
+	)
+}
+
 <PhotoGridClient
-  client:only="preact"
-  staffAuthors={siteConfig.staffAuthors}
-  ariaLabelPrefix="Open fullscreen of"
+	client:only="preact"
+	staffAuthors={siteConfig.staffAuthors}
+	ariaLabelPrefix="Open fullscreen of"
 />
+
+<script type="application/ld+json" set:html={JSON.stringify(schema)} is:inline />
