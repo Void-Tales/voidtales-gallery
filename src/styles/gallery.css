@@ -70,6 +70,13 @@
   display: none;
 }
 
+/* Placeholder cards for the initial load: same card box, same shimmer, but no
+   image, caption or click target. */
+.photo-skeleton {
+  cursor: default;
+  pointer-events: none;
+}
+
 @keyframes shimmer {
   to {
     background-position: -200% 0;

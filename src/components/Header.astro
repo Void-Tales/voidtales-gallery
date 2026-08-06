@@ -15,7 +15,7 @@ import { navigationLinks } from '../config/navigation.js';
     <!-- Main navigation links -->
     <nav class="header-nav" role="navigation" aria-label="Main navigation">
       {navigationLinks.map(link => (
-        <a href={link.href} target="_blank" class="nav-link">{link.label}</a>
+        <a href={link.href} target="_blank" rel="noopener" class="nav-link">{link.label}</a>
       ))}
     </nav>
 
