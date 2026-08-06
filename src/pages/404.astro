@@ -1,0 +1,54 @@
+---
+import { Font } from 'astro:assets';
+import { siteConfig } from '../config/site.js';
+
+import '../styles/variables.css';
+import '../styles/base.css';
+import '../styles/layout.css';
+import '../styles/components.css';
+import '../styles/hero.css';
+
+import Footer from '../components/Footer.astro';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href={siteConfig.favicon} />
+    <Font cssVariable="--font-unbounded" preload={[{ style: 'normal' }]} />
+    <Font cssVariable="--font-instrument-sans" preload={[{ style: 'normal' }]} />
+    <title>Not Found - {siteConfig.name}</title>
+    <meta name="theme-color" content="#0a0714" />
+    <!-- Set theme on initial load -->
+    <script>
+      // Set theme based only on localStorage, default is dark
+      (function() {
+        try {
+          var saved = localStorage.getItem('theme');
+          var isDark = saved === 'dark' || !saved;
+          document.documentElement.classList.toggle('dark', isDark);
+          document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+        } catch(e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    {/* No Header here: it carries Refresh/Sort controls that only make sense
+        next to the photo grid. */}
+    <section class="hero">
+      <div class="hero-content">
+        <span class="hero-eyebrow">404</span>
+        <h1 class="hero-title">Nothing to <span class="accent">see</span> here</h1>
+        <p class="hero-subtitle">This frame came back empty. The gallery is still that way.</p>
+        <div class="hero-actions">
+          <a href="/" class="hero-cta">Back to the gallery</a>
+        </div>
+      </div>
+    </section>
+    <Footer />
+  </body>
+</html>
