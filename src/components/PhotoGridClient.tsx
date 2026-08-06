@@ -46,6 +46,32 @@ function slideTitle(photo: Photo) {
   return photo.caption?.trim() || photo.body?.trim() || photo.title?.trim() || "";
 }
 
+// ponytail: fixed ratio list instead of measuring anything — the skeleton only
+// has to read as "photos are coming", not predict the actual grid.
+const SKELETON_RATIOS = [16 / 9, 3 / 4, 4 / 3, 1, 16 / 10, 3 / 4, 3 / 2, 1, 4 / 5, 16 / 9, 4 / 3, 1];
+
+function SkeletonGrid({ cols }: { cols: number }) {
+  const tiles = SKELETON_RATIOS.map((ratio, index) => ({ ratio, index }));
+  return (
+    <div class="masonry" role="status" aria-busy="true" aria-label="Loading gallery">
+      {distributeColumns(tiles, cols).map((column, columnIndex) => (
+        <div class="masonry-col" key={columnIndex}>
+          {column.map((tile) => (
+            <div
+              key={tile.index}
+              class="photo photo-skeleton"
+              style={{
+                aspectRatio: `${tile.ratio}`,
+                "--card-delay": `${Math.min(tile.index, MAX_STAGGER) * STAGGER_STEP}s`,
+              }}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Loader({ label }: { label: string }) {
   return (
     <div class="photo-grid-loader">
@@ -488,14 +514,17 @@ export default function PhotoGridClient({
 
   return (
     <div>
-      {loading && <Loader label="Loading Gallery ..." />}
-      <div key={gridKey} id="photo-grid" class={`masonry ${flashing ? "flashing" : ""}`}>
-        {columns.map((column, columnIndex) => (
-          <div class="masonry-col" key={columnIndex}>
-            {column.map(renderTile)}
-          </div>
-        ))}
-      </div>
+      {loading ? (
+        <SkeletonGrid cols={cols} />
+      ) : (
+        <div key={gridKey} id="photo-grid" class={`masonry ${flashing ? "flashing" : ""}`}>
+          {columns.map((column, columnIndex) => (
+            <div class="masonry-col" key={columnIndex}>
+              {column.map(renderTile)}
+            </div>
+          ))}
+        </div>
+      )}
       {isLoadingMore && <Loader label="Loading more images..." />}
       <div ref={sentinelRef} />
     </div>
