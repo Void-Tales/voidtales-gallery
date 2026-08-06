@@ -38,7 +38,11 @@ jobs:
     steps:
       # 📥 Checkout repository
       - name: 📥 Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      # 🔧 Buildx, needed for the GHA layer cache backend below
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       # 🔧 Restore npm cache for cache key generation
       - name: 🔧 Restore npm cache for cache key generation
@@ -64,10 +68,6 @@ jobs:
         run: |
           rm -f src/content/photos/.downloads_synced
           rm -f public/images/original/.downloads_synced
-
-      # - name: 🔧 Get force-cache-update hash
-      #   id: forcecache
-      #   run: echo "hash=$(md5sum .force-cache-update | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
       # 🔧 Restore downloaded files cache
       - name: 🔧 Restore downloaded files cache
@@ -127,14 +127,19 @@ jobs:
 
       # 🔨 Build and push Docker image
       - name: 🔨 Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
+          # :latest is what Dokploy pulls; the SHA tag is the rollback target —
+          # set it in Dokploy and redeploy to get back to a known good build.
           tags: |
             inventory69/voidtales-gallery:latest
+            inventory69/voidtales-gallery:${{ github.sha }}
           platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
             EXT_DL_URL_MARKDOWN=${{ env.EXT_DL_URL_MARKDOWN }}
             EXT_DL_URL_ORIGINAL=${{ env.EXT_DL_URL_ORIGINAL }}
@@ -144,19 +149,17 @@ jobs:
       # 🚮 Purge images.json from Cloudflare cache
       - name: 🚮 Purge images.json from Cloudflare cache
         run: |
-          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/purge_cache" \
+          curl -fsS -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/purge_cache" \
             -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
             -H "Content-Type: application/json" \
             --data '{"files":["https://gallery.voidtales.win/images.json"]}'
 
       # 🚀 Trigger Dokploy deployment via API
+      # -fsS: without -f the run stays green even when Dokploy rejects the deploy.
       - name: 🚀 Trigger Dokploy Deployment
         run: |
-          curl -X POST \
+          curl -fsS -X POST \
           -H "Authorization: Bearer ${{ secrets.DOKPLOY_API_TOKEN }}" \
           -H "Content-Type: application/json" \
           -d '{ "image_tag": "inventory69/voidtales-gallery:latest" }' \
           "${{ secrets.API_HOST }}/api/deploy/${{ secrets.DOKPLOY_APP_ID }}"
-        env:
-          DOKPLOY_API_TOKEN: ${{ secrets.DOKPLOY_API_TOKEN }}
-          DOKPLOY_APP_ID: ${{ secrets.DOKPLOY_APP_ID }}

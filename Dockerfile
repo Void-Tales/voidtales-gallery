@@ -23,14 +23,17 @@ RUN corepack enable
 # Stage 2: Build stage - install dependencies and build the application
 FROM base AS build
 WORKDIR /app
-# Copy all project files to the container (node_modules is excluded via .dockerignore)
-COPY . .
-# Copy lock files to leverage caching
-COPY package.json pnpm-lock.yaml ./
+# Manifests first: the dependency layer stays cached as long as these three
+# files are unchanged, no matter what else changed in the repo.
+# pnpm-workspace.yaml belongs here too - it carries allowBuilds for sharp/esbuild,
+# without it the install aborts with ERR_PNPM_IGNORED_BUILDS.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 # Set CI environment to enable non-interactive mode
 ENV CI=true
-# Install pnpm dependencies
-RUN pnpm install --frozen-lockfile
+# Install pnpm dependencies (shared store cache survives across builds)
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+# Source last, so a content change never invalidates the install above
+COPY . .
 # Set environment to production to optimize the build
 ENV NODE_ENV=production
 # Build the application for production
@@ -38,18 +41,7 @@ RUN pnpm run build
 
 # ------------------------------------------------------------
 
-# Stage 3: Node.js server image (not used in final deployment, but available for Dokploy if needed)
-FROM base AS dokploy
-WORKDIR /app
-ENV NODE_ENV=production
-# Copy only the necessary production files from the 'build' stage
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/node_modules ./node_modules
-
-# ------------------------------------------------------------
-
-# Stage 4: Final production image for serving static files with Nginx
+# Stage 3: Final production image for serving static files with Nginx
 FROM nginx:alpine
 # Copy built static files from the build stage to the Nginx web server directory
 COPY --from=build /app/dist /usr/share/nginx/html
