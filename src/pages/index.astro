@@ -72,7 +72,7 @@ const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
     <div id="mobile-menu" class="mobile-menu">
       <nav class="mobile-nav" role="navigation" aria-label="Mobile navigation">
         {navigationLinks.map(link => (
-          <a href={link.href} class="nav-link">{link.label}</a>
+          <a href={link.href} target="_blank" rel="noopener" class="nav-link">{link.label}</a>
         ))}
       </nav>
       <div class="mobile-actions">

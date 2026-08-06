@@ -1,22 +1,12 @@
-// Navigation configuration file: Defines links for the site navigation menu.
-// Used in the header or navigation component to render external links.
-
+// Header navigation. Mirrors the portal's list (voidtales-portal
+// src/config/navigation.js) minus "Gallery" — that's this site. News and Devlog
+// live on the portal now and replaced the old Blog/Forum links.
 export const navigationLinks = [
-  // Portal link: Main entry point for VoidTales services
   { label: 'Portal', href: 'https://portal.voidtales.win' },
-  
-  // Wiki link: Community wiki for VoidTales information
   { label: 'Wiki', href: 'https://wiki.voidtales.win' },
-  
-  // Blog link: Official blog for updates and news
-  { label: 'Blog', href: 'https://blog.voidtales.win' },
-  
-  // Forum link: Community discussion forum
-  { label: 'Forum', href: 'https://forum.voidtales.win' },
-  
-  // Discord link: Invite to the VoidTales Discord server
+  { label: 'News', href: 'https://portal.voidtales.win/news' },
+  { label: 'Devlog', href: 'https://portal.voidtales.win/devlog' },
+  // ponytail: the raw invite, not discord.voidtales.win — that vanity host 404s.
   { label: 'Discord', href: 'https://discord.gg/QEMQsFect6' },
-  
-  // Map link: Dynamic map of the VoidTales world
-  { label: 'Map', href: 'https://dynmap.voidtales.win' },
+  { label: 'World Map', href: 'https://dynmap.voidtales.win' },
 ];
