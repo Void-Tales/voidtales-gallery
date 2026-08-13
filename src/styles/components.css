@@ -354,6 +354,22 @@ html.dark .theme-icon-sun {
   font-size: 0.8rem;
 }
 
+.footer-legal {
+  display: flex;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.footer-legal a {
+  color: var(--muted);
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.footer-legal a:hover,
+.footer-legal a:focus-visible {
+  color: var(--accent);
+}
+
 /* ---------- Responsive shell ---------- */
 
 @media (width <= 767px) {

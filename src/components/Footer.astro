@@ -30,6 +30,13 @@ const currentYear = new Date().getFullYear();
       <p>
         &copy; {currentYear} {siteConfig.footer.copyright}. All rights reserved.
       </p>
+      {/* Die Pflichtseiten liegen beim Portal: gleicher Betreiber, gleiche Domain,
+          eine Pflegestelle. Eigene Zeile statt navigationLinks - die Liste oben
+          erzwingt target="_blank" fuer jeden Eintrag. */}
+      <p class="footer-legal">
+        <a href="https://portal.voidtales.win/impressum">Impressum</a>
+        <a href="https://portal.voidtales.win/datenschutz">Datenschutz</a>
+      </p>
     </div>
   </div>
 </footer>
