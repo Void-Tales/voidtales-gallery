@@ -1,9 +1,14 @@
 /* =================== HERO =================== */
 
+/* `svh`, not `dvh`, here and in base/layout: the dynamic height changes live
+   while mobile Chrome hides and shows its URL bar, which resizes the hero and
+   shoves everything below it up and down mid-scroll. The small height is
+   constant. Price: with the URL bar hidden the hero is a little shorter than
+   the visible area. */
 .hero {
   display: flex;
   align-items: center;
-  min-height: 60dvh;
+  min-height: 60svh;
   padding: var(--space-6) 0;
 }
 
@@ -76,7 +81,7 @@
 
 @media (width <= 639px) {
   .hero {
-    min-height: 48dvh;
+    min-height: 48svh;
   }
 
   .hero-title {

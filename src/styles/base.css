@@ -33,7 +33,7 @@ button {
 }
 
 body {
-  min-height: 100dvh;
+  min-height: 100svh;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);

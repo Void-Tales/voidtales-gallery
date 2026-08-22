@@ -20,7 +20,7 @@ body::before {
     radial-gradient(60rem 45rem at 20% 95%, rgb(109 40 217 / 7%), transparent 70%),
     linear-gradient(rgb(241 241 241 / 72%), rgb(219 237 240 / 88%)),
     url('/images/index-light-blur.webp') center / cover no-repeat;
-  mask-image: linear-gradient(to bottom, #000 0, #000 55dvh, transparent 105dvh);
+  mask-image: linear-gradient(to bottom, #000 0, #000 55svh, transparent 105svh);
   pointer-events: none;
 }
 
