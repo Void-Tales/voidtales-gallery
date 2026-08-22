@@ -11,17 +11,20 @@ import { sortPhotos } from '../utils/sortPhotos.js';
 // waren fuer die Bildersuche schlicht nicht vorhanden.
 //
 // Der statische Grid ist kein Fallback, sondern der erste Frame: er zeigt
-// echte Bilder statt der Skeleton-Kacheln. Sobald die Preact-Komponente ihre
-// Daten hat, entfernt sie ihn (siehe unten, `data-static-grid`).
+// echte Bilder statt der Skeleton-Kacheln. Die Preact-Komponente bekommt
+// denselben Bestand als Prop und entfernt ihn in ihrem ersten Layout-Effekt,
+// also ohne Zwischenframe (siehe unten, `data-static-grid`).
 //
 // Bewusst KEIN client:load: die Komponente wuerde sonst gegen dieses Markup
 // hydrieren muessen, und ihr Zustand (Sortierung, Batching, Lightbox-Index)
 // entsteht erst im Browser. Zwei getrennte Baeume sind hier ehrlicher als eine
 // erzwungene Uebereinstimmung.
 
-// images.json schreibt die CI (copy-original-images.cjs) vor dem Astro-Build;
-// zur Laufzeit holt die Preact-Komponente dieselbe Datei nochmal per fetch, um
-// den Refresh-Knopf zu bedienen. Hier reicht der Build-Zeit-Stand.
+// images.json schreibt die CI (copy-original-images.cjs) vor dem Astro-Build und
+// backt sie ins Image; zur Laufzeit aendert sie sich nicht mehr. Deshalb geht
+// derselbe Stand unten als `initialPhotos` an die Preact-Komponente, statt dass
+// die ihn beim Seitenaufruf nochmal per fetch holt. Neu geholt wird nur noch
+// per Refresh-Knopf.
 // Direktimport statt fs: tsconfig laesst node-Typen bewusst draussen, und Vite
 // laedt JSON von jedem Pfad im Projekt.
 
@@ -39,6 +42,7 @@ const tiles = sortPhotos(photos, 'date-desc').map((img: any, index: number) => (
 	title: img.title || img.id,
 	caption: img.caption || '',
 	author: img.author || '',
+	body: img.body || '',
 	date: img.date,
 	index,
 }));
@@ -111,6 +115,7 @@ const schema = {
 
 <PhotoGridClient
 	client:only="preact"
+	initialPhotos={tiles}
 	staffAuthors={siteConfig.staffAuthors}
 	ariaLabelPrefix="Open fullscreen of"
 />
