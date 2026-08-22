@@ -1,6 +1,6 @@
 import GLightbox from "glightbox";
 import "glightbox/dist/css/glightbox.css";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { distributeColumns } from "../utils/distributeColumns.js";
 import { sortPhotos } from "../utils/sortPhotos.js";
 
@@ -26,8 +26,6 @@ type Photo = {
 
 type Tile = Photo & { index: number };
 
-const BATCH_SIZE = 10;
-const INITIAL_COUNT = 20;
 const EAGER_COUNT = 6;
 const PRIORITY_COUNT = 3;
 const MAX_RETRIES = 2;
@@ -44,6 +42,25 @@ function columnsForWidth() {
 
 function slideTitle(photo: Photo) {
   return photo.caption?.trim() || photo.body?.trim() || photo.title?.trim() || "";
+}
+
+// Beim ersten Aufruf der Komponente steht der statische Grid noch, und seine
+// card-in-Animation laeuft. Die Web Animations API sagt, wie weit sie ist; als
+// negativer animation-delay gesetzt, nehmen die Karten der Komponente die
+// Einblendung an genau derselben Stelle wieder auf, statt sie abzuschneiden.
+// null heisst: nichts abzulesen (Animation durch, reduzierte Bewegung, kein
+// statischer Grid) - dann sind die Karten schlicht fertig eingeblendet.
+function runningCardInDelay(): number | null {
+  const card = document.querySelector("[data-static-grid] .photo");
+  const anim = card
+    ?.getAnimations?.()
+    .find((a) => (a as CSSAnimation).animationName === "card-in");
+  const elapsed = Number(anim?.currentTime);
+  const total = Number(anim?.effect?.getTiming?.().duration);
+  if (!Number.isFinite(elapsed) || !Number.isFinite(total) || elapsed <= 0 || elapsed >= total) {
+    return null;
+  }
+  return -elapsed / 1000;
 }
 
 // ponytail: fixed ratio list instead of measuring anything — the skeleton only
@@ -72,55 +89,31 @@ function SkeletonGrid({ cols }: { cols: number }) {
   );
 }
 
-function Loader({ label }: { label: string }) {
-  return (
-    <div class="photo-grid-loader">
-      <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true">
-        <circle
-          cx="24"
-          cy="24"
-          r="20"
-          stroke="currentColor"
-          strokeWidth="3"
-          fill="none"
-          strokeDasharray="100"
-          strokeDashoffset="60"
-        >
-          <animateTransform
-            attributeName="transform"
-            type="rotate"
-            from="0 24 24"
-            to="360 24 24"
-            dur="1s"
-            repeatCount="indefinite"
-          />
-        </circle>
-      </svg>
-      <span>{label}</span>
-    </div>
-  );
-}
-
 export default function PhotoGridClient({
+  initialPhotos = [],
   staffAuthors,
   ariaLabelPrefix,
 }: {
+  initialPhotos?: Photo[];
   staffAuthors?: string[];
   ariaLabelPrefix?: string;
 }) {
-  const [originalPhotos, setOriginalPhotos] = useState<Photo[]>([]);
+  // Derselbe Bestand, den PhotoGrid.astro statisch rendert, als Prop: images.json
+  // wird in das Docker-Image gebacken, ein fetch beim Seitenaufruf holt also
+  // garantiert dieselben Daten - und schiebt dafuer einen Skeleton zwischen zwei
+  // identische Frames. Nachgeholt wird nur noch auf Knopfdruck.
+  const [originalPhotos, setOriginalPhotos] = useState<Photo[]>(initialPhotos);
   const [sortOption, setSortOption] = useState(getInitialSort());
   const [shuffleNonce, setShuffleNonce] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialPhotos.length === 0);
   const [flashing, setFlashing] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [pendingBatch, setPendingBatch] = useState(false);
   const [pendingHashId, setPendingHashId] = useState<string | null>(null);
   const [lightboxReady, setLightboxReady] = useState(false);
   const [gridKey, setGridKey] = useState(0);
   const [cols, setCols] = useState(columnsForWidth);
   const [retries, setRetries] = useState<Record<string, number>>({});
+  // Lazy initializer: laeuft im ersten Render, also solange der statische Grid steht.
+  const [resumeDelay] = useState(runningCardInDelay);
 
   // Derived, not state: if `sortOption` and the sorted list could disagree for even
   // one render, the entrance delays would freeze against the pre-sort order.
@@ -130,17 +123,22 @@ export default function PhotoGridClient({
     [originalPhotos, sortOption, shuffleNonce],
   );
 
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
   // Entrance state lives in refs on purpose: a re-render must never restart or
   // cut off a running card-in animation.
-  const batchStartRef = useRef(0);
-  const delaysRef = useRef(new Map<string, number>());
-  const revealedRef = useRef(new Set<string>());
+  const delaysRef = useRef(
+    new Map<string, number>(
+      resumeDelay === null ? [] : initialPhotos.map((photo) => [photo.id, resumeDelay]),
+    ),
+  );
+  // Ohne eine der beiden Vorbelegungen faengt card-in beim Uebergang von vorne an
+  // und der Grid blitzt weg: entweder die Einblendung laeuft weiter (negativer
+  // Delay) oder sie war ohnehin schon durch (direkt als sichtbar markiert).
+  const revealedRef = useRef(
+    new Set<string>(resumeDelay === null ? initialPhotos.map((photo) => photo.id) : []),
+  );
   const imgLoadedRef = useRef(new Set<string>());
 
   function resetEntranceState() {
-    batchStartRef.current = 0;
     delaysRef.current.clear();
     revealedRef.current.clear();
     imgLoadedRef.current.clear();
@@ -150,8 +148,7 @@ export default function PhotoGridClient({
   function delayFor(id: string, index: number) {
     const known = delaysRef.current.get(id);
     if (known !== undefined) return known;
-    const offset = Math.min(Math.max(index - batchStartRef.current, 0), MAX_STAGGER);
-    const delay = offset * STAGGER_STEP;
+    const delay = Math.min(index, MAX_STAGGER) * STAGGER_STEP;
     delaysRef.current.set(id, delay);
     return delay;
   }
@@ -277,22 +274,26 @@ export default function PhotoGridClient({
       resetEntranceState();
       setRetries({});
       setOriginalPhotos(mapped);
-      setVisibleCount(INITIAL_COUNT);
-
-      // PhotoGrid.astro rendert denselben Grid statisch vor - sonst enthaelt das
-      // HTML wegen client:only kein einziges <img> und Crawler sehen eine leere
-      // Seite. Ab hier uebernimmt diese Komponente. Erst nach setOriginalPhotos
-      // entfernen, sonst klafft dazwischen eine leere Seite.
-      document.querySelector("[data-static-grid]")?.remove();
     } catch (err) {
       console.error("[PhotoGridClient] Error loading photos:", err);
     }
     setLoading(false);
   }
 
+  // Nur der Notfall: images.json war beim Build leer, dann gibt es auch keinen
+  // statischen Grid und der Skeleton ist die richtige Antwort.
   useEffect(() => {
-    loadAndSetPhotos();
+    if (initialPhotos.length === 0) loadAndSetPhotos();
   }, []);
+
+  // PhotoGrid.astro rendert denselben Grid statisch vor - sonst enthaelt das HTML
+  // wegen client:only kein einziges <img> und Crawler sehen eine leere Seite. Ab
+  // hier uebernimmt diese Komponente. Layout-Effekt, damit Entfernen und erster
+  // eigener Paint im selben Frame liegen; ein normaler Effekt laesst dazwischen
+  // eine leere Seite durch.
+  useLayoutEffect(() => {
+    if (originalPhotos.length > 0) document.querySelector("[data-static-grid]")?.remove();
+  }, [originalPhotos.length]);
 
   useEffect(() => {
     const update = () => setCols(columnsForWidth());
@@ -310,9 +311,6 @@ export default function PhotoGridClient({
     const handleSort = (e: CustomEvent) => {
       resetEntranceState();
       setSortOption(e.detail.sortOption);
-      setVisibleCount(INITIAL_COUNT);
-      setPendingBatch(false);
-      setIsLoadingMore(false);
       setGridKey((prev) => prev + 1);
       // Re-picking "random" has to produce a new shuffle.
       if (e.detail.sortOption === "random") setShuffleNonce((prev) => prev + 1);
@@ -335,43 +333,12 @@ export default function PhotoGridClient({
     }
   }, []);
 
-  // Infinite Scroll: robust Observer, feuert nur einmal pro Batch
-  useEffect(() => {
-    if (!sentinelRef.current) return;
-    if (observerRef.current) observerRef.current.disconnect();
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (
-          entries[0].isIntersecting &&
-          !isLoadingMore &&
-          !pendingBatch &&
-          visibleCount < loadedPhotos.length
-        ) {
-          setIsLoadingMore(true);
-          setPendingBatch(true);
-          setTimeout(() => {
-            setVisibleCount((prev) => {
-              // New cards stagger relative to the batch they arrived in, not to a
-              // modulo of their global index.
-              batchStartRef.current = prev;
-              return Math.min(prev + BATCH_SIZE, loadedPhotos.length);
-            });
-            setIsLoadingMore(false);
-            setPendingBatch(false);
-          }, 150);
-        }
-      },
-      { rootMargin: "200px" },
-    );
-    observerRef.current.observe(sentinelRef.current);
-
-    return () => {
-      if (observerRef.current) observerRef.current.disconnect();
-    };
-  }, [isLoadingMore, pendingBatch, visibleCount, loadedPhotos.length]);
-
-  const visiblePhotos = loadedPhotos.slice(0, visibleCount);
+  // Kein Nachladen in Batches: PhotoGrid.astro schickt den ganzen Bestand schon
+  // im HTML an jeden Besucher, das Batching hat danach nur noch versteckt, was
+  // ohnehin im DOM stand - und die Bilder haengen am `loading="lazy"`, nicht daran.
+  // ponytail: jenseits einiger hundert Bilder wieder batchen - dann aber auf
+  // beiden Seiten, sonst blendet der Loader nur nach Refresh und Sortierwechsel auf.
+  const visiblePhotos = loadedPhotos;
 
   // GLightbox: driven by an explicit element list, because the DOM order of the
   // masonry columns no longer matches the sort order.
@@ -406,7 +373,7 @@ export default function PhotoGridClient({
 
     window._glightboxInstance = lightbox;
     setTimeout(() => setLightboxReady(true), 100); // Mark GLightbox as ready after init
-  }, [loadedPhotos, visibleCount]);
+  }, [loadedPhotos]);
 
   // Hash-Open: Open only once and only if GLightbox is ready and not already open
   useEffect(() => {
@@ -414,7 +381,6 @@ export default function PhotoGridClient({
     const index = loadedPhotos.findIndex((photo) => photo.id === pendingHashId);
     if (
       index >= 0 &&
-      index < visibleCount &&
       window._glightboxInstance &&
       typeof window._glightboxInstance.openAt === "function"
     ) {
@@ -427,13 +393,8 @@ export default function PhotoGridClient({
           }
         }, 200);
       }
-    } else if (index >= visibleCount && index >= 0) {
-      setVisibleCount((prev) => {
-        batchStartRef.current = prev;
-        return index + 1;
-      });
     }
-  }, [pendingHashId, loadedPhotos, visibleCount, lightboxReady]);
+  }, [pendingHashId, loadedPhotos, lightboxReady]);
 
   function isStaffPhoto(photo: Photo) {
     return (
@@ -491,6 +452,14 @@ export default function PhotoGridClient({
             loading={photo.index < EAGER_COUNT ? "eager" : "lazy"}
             fetchPriority={photo.index < PRIORITY_COUNT ? "high" : "auto"}
             decoding="async"
+            ref={(el) => {
+              // Gecachte Bilder sind fertig, bevor Preact den load-Listener setzt:
+              // dann feuert onLoad nie und das <img> bliebe auf opacity 0 stehen.
+              if (el?.complete && el.naturalWidth > 0) {
+                imgLoadedRef.current.add(photo.id);
+                el.closest(".photo")?.classList.add("loaded");
+              }
+            }}
             onLoad={(event) => {
               imgLoadedRef.current.add(photo.id);
               event.currentTarget.closest(".photo")?.classList.add("loaded");
@@ -531,8 +500,6 @@ export default function PhotoGridClient({
           ))}
         </div>
       )}
-      {isLoadingMore && <Loader label="Loading more images..." />}
-      <div ref={sentinelRef} />
     </div>
   );
 }
