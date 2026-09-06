@@ -65,6 +65,14 @@ const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
         } catch(e) {}
       })();
     </script>
+    <!-- Analytics: self-hosted Umami, cookieless, nothing stored on the device.
+         Same website id as the portal - Umami keeps the hostname per event, so
+         gallery.voidtales.win stays separable. Covered by the portal's
+         Datenschutzerklaerung, which the footer links to. -->
+    <script
+      defer
+      src="https://stats.hzwd.xyz/script.js"
+      data-website-id="7c235267-8275-439c-8449-39b753460c67"></script>
   </head>
   <body>
     <Header />
