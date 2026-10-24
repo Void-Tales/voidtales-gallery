@@ -1,0 +1,33 @@
+/* =================== HALLOWEEN =================== */
+
+/* 24.10. to 1.11., index.astro sets html.halloween by the visitor's clock.
+   Same shift as the portal: lantern orange instead of violet (white on
+   #c2410c 5.2:1 by day), and Minecraft's October bats in the hero. Nothing
+   touches the photos, they are the content. */
+html.halloween { --accent: #c2410c; --accent-soft: rgb(194 65 12 / 10%); }
+html.halloween.dark,
+html.halloween[data-theme='dark'] { --accent: #ff9a4d; --accent-soft: rgb(255 154 77 / 14%); --glow: rgb(255 140 50 / 50%); }
+
+.spuk { display: none; }
+html.halloween .hero { position: relative; overflow: hidden; }
+html.halloween .spuk { display: block; position: absolute; inset: 0; pointer-events: none; }
+html.halloween .hero-content { position: relative; z-index: 1; } /* bats fly behind the copy */
+.spuk i {
+  position: absolute;
+  aspect-ratio: 17 / 8;
+  background: url('/images/halloween/fledermaus-pixel.svg') center / contain no-repeat;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 1.5px rgb(196 160 255 / 95%)) drop-shadow(0 0 10px rgb(167 139 250 / 45%));
+  animation: flug var(--d) linear var(--s) infinite, flattern 0.3s steps(1) infinite;
+}
+.spuk i:nth-child(1) { width: 68px; left: 72%; top: 18%; --d: 22s; --s: -3s; }
+.spuk i:nth-child(2) { width: 51px; left: 48%; top: 8%; --d: 30s; --s: -14s; }
+.spuk i:nth-child(3) { width: 42px; left: 86%; top: 62%; --d: 36s; --s: -25s; }
+@keyframes flug {
+  0% { translate: 70vw 0; }
+  35% { translate: 20vw -2.5rem; }
+  65% { translate: -25vw 1.5rem; }
+  100% { translate: -110vw -1rem; }
+}
+@keyframes flattern { 50% { scale: 1 0.5; } }
+@media (prefers-reduced-motion: reduce) { .spuk i { animation: none; } }
