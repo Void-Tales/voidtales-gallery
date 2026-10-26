@@ -2,7 +2,7 @@
 // description by PhotoGridClient. Everything user-written is rendered as JSX
 // text, never as HTML.
 
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import {
   type Comment,
   deleteComment,
@@ -14,6 +14,10 @@ import {
 } from "../utils/social.js";
 
 const MAX_LENGTH = 500;
+
+// Same breakpoint as the side panel in lightbox.css. Below it the comments live
+// in a bottom sheet that the comment button opens.
+const SIDE_PANEL = "(width >= 900px)";
 
 const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
@@ -48,6 +52,9 @@ export default function SocialPanel({ imageId }: { imageId: string }) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const list = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     if (social.available) fetchComments(imageId).then(setComments, () => setComments([]));
@@ -85,7 +92,16 @@ export default function SocialPanel({ imageId }: { imageId: string }) {
       const comment = await postComment(imageId, body);
       setComments((prev) => [...(prev ?? []), comment]);
       setDraft("");
+      // After the re-render, so the new comment is in the list: show it.
+      setTimeout(() => list.current?.scrollTo({ top: list.current.scrollHeight }));
     });
+  }
+
+  // Side panel: comments are always visible, the button jumps to the input.
+  // Bottom sheet: the button opens and closes it.
+  function onCommentsButton() {
+    if (window.matchMedia(SIDE_PANEL).matches) textarea.current?.focus();
+    else setOpen((o) => !o);
   }
 
   function onDelete(id: number) {
@@ -109,68 +125,87 @@ export default function SocialPanel({ imageId }: { imageId: string }) {
           <HeartIcon />
           <span>{stat.likes}</span>
         </button>
-        <span class="social-count" title="Comments">
+        <button
+          type="button"
+          class="social-count"
+          aria-expanded={open}
+          title="Comments"
+          onClick={onCommentsButton}
+        >
           <CommentIcon />
           <span>{stat.comments}</span>
-        </span>
+        </button>
       </div>
 
-      {comments && comments.length > 0 && (
-        <ul class="comment-list">
-          {comments.map((c) => (
-            <li key={c.id} class="comment">
-              {c.avatar ? (
-                <img class="comment-avatar" src={c.avatar} alt="" width={28} height={28} loading="lazy" />
-              ) : (
-                <span class="comment-avatar" />
-              )}
-              <div class="comment-main">
-                <div class="comment-meta">
-                  <span class="comment-name">{c.name}</span>
-                  {c.source === "discord" && <DiscordMark />}
-                  <time dateTime={new Date(c.created).toISOString()}>{dateFormat.format(c.created)}</time>
-                  {c.canDelete && (
-                    <button type="button" class="comment-delete" disabled={busy} onClick={() => onDelete(c.id)}>
-                      Delete
-                    </button>
-                  )}
-                </div>
-                <p class="comment-body">{c.body}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div class={`social-thread${open ? " open" : ""}`}>
+        <div class="social-thread-head">
+          <h5>Comments</h5>
+          <button type="button" class="social-thread-close" aria-label="Close comments" onClick={() => setOpen(false)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
 
-      {social.me ? (
-        <form class="comment-form" onSubmit={onSubmit}>
-          <textarea
-            value={draft}
-            maxLength={MAX_LENGTH}
-            rows={2}
-            placeholder="Write a comment…"
-            aria-label="Comment"
-            onInput={(e) => setDraft(e.currentTarget.value)}
-            // GLightbox listens on window and only spares Tab: without this the
-            // arrow keys switch slides while typing. Escape still closes.
-            onKeyDown={(e) => {
-              if (e.key !== "Escape") e.stopPropagation();
-            }}
-          />
-          <div class="comment-form-row">
-            <span class="comment-counter">
-              {draft.length}/{MAX_LENGTH}
-            </span>
-            <button type="submit" class="comment-submit" disabled={busy || !draft.trim()}>
-              Post
-            </button>
-          </div>
-        </form>
-      ) : (
-        <a class="social-login" href={loginUrl(imageId)}>
-          Log in with Discord to like and comment
-        </a>
-      )}
+        {comments && comments.length === 0 && <p class="comment-empty">No comments yet.</p>}
+        {comments && comments.length > 0 && (
+          <ul class="comment-list" ref={list}>
+            {comments.map((c) => (
+              <li key={c.id} class="comment">
+                {c.avatar ? (
+                  <img class="comment-avatar" src={c.avatar} alt="" width={28} height={28} loading="lazy" />
+                ) : (
+                  <span class="comment-avatar" />
+                )}
+                <div class="comment-main">
+                  <div class="comment-meta">
+                    <span class="comment-name">{c.name}</span>
+                    {c.source === "discord" && <DiscordMark />}
+                    <time dateTime={new Date(c.created).toISOString()}>{dateFormat.format(c.created)}</time>
+                    {c.canDelete && (
+                      <button type="button" class="comment-delete" disabled={busy} onClick={() => onDelete(c.id)}>
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                  <p class="comment-body">{c.body}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {social.me ? (
+          <form class="comment-form" onSubmit={onSubmit}>
+            <textarea
+              ref={textarea}
+              value={draft}
+              maxLength={MAX_LENGTH}
+              rows={2}
+              placeholder="Write a comment…"
+              aria-label="Comment"
+              onInput={(e) => setDraft(e.currentTarget.value)}
+              // GLightbox listens on window and only spares Tab: without this the
+              // arrow keys switch slides while typing. Escape still closes.
+              onKeyDown={(e) => {
+                if (e.key !== "Escape") e.stopPropagation();
+              }}
+            />
+            <div class="comment-form-row">
+              <span class="comment-counter">
+                {draft.length}/{MAX_LENGTH}
+              </span>
+              <button type="submit" class="comment-submit" disabled={busy || !draft.trim()}>
+                Post
+              </button>
+            </div>
+          </form>
+        ) : (
+          <a class="social-login" href={loginUrl(imageId)}>
+            Log in with Discord to like and comment
+          </a>
+        )}
+      </div>
 
       {error && (
         <p class="social-error" role="alert">

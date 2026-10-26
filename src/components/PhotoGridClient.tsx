@@ -372,6 +372,11 @@ export default function PhotoGridClient({
         type: "image",
         title: slideTitle(photo),
         description: `Author: ${photo.author}`,
+        // "right" keeps GLightbox from shrinking the photo by the height of the
+        // description; lightbox.css lays it out as side panel or bottom bar.
+        // Per element, because GLightbox lets its slide defaults override the
+        // global option.
+        descPosition: "right",
       })) as unknown as [],
       touchNavigation: true,
       zoomable: false,
