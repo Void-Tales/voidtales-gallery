@@ -32,7 +32,7 @@
     "@astrojs/sitemap": "^3.7.4",
     "astro": "^7.4.2",
     "cheerio": "^1.2.0",
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.9",
     "glightbox": "^3.3.1",
     "preact": "^11.0.2",
     "smartypants": "^0.2.2",
@@ -40,7 +40,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.3",
-    "concurrently": "^9.2.3",
+    "concurrently": "^10.0.6",
     "husky": "^9.1.7",
     "sharp": "^0.35.5",
     "stylelint": "^17.16.0",
