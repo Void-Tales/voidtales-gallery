@@ -39,7 +39,7 @@ Secrets only as environment of the Dokploy app, never in the repo.
 ## Local
 
 ```bash
-node --test api/
+node --test api/server.test.js
 # API on :3000, dev server proxies /api there (astro.config.mjs)
 DB_PATH=/tmp/g.db BACKUP_PATH=/tmp/g-backup.db PUBLIC_ORIGIN=http://localhost:4321 \
   IMAGES_URL=http://localhost:4321/images.json DISCORD_CLIENT_ID=x DISCORD_CLIENT_SECRET=x \

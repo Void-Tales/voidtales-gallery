@@ -48,7 +48,7 @@ To use your own images: originals go in `public/images/original/`, metadata as M
 | `pnpm run gen:thumbs` | Generate WebP thumbnails (200/400/800px) |
 | `pnpm run gen:imagejson` | Regenerate `images.json` + sitemap |
 | `pnpm run gen:testdata` / `cleanup:testdata` | Create/remove local test data |
-| `node --test api/` | Tests for the likes/comments API |
+| `node --test api/server.test.js` | Tests for the likes/comments API |
 
 ## 📁 Project Structure
 
