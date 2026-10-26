@@ -12,14 +12,22 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
+/* Three columns with equal outer tracks, so the nav sits on the page's true
+   centre however wide brand and buttons are. Same rules as the portal. Below
+   64rem the nav is gone and the buttons keep their column. */
 .site-header-inner {
-  display: flex;
+  display: grid;
+  height: var(--header-h);
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: var(--space-4);
-  height: var(--header-h);
 }
 
-.brand .logo {
+.brand {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 0.6rem;
   font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 600;
@@ -27,17 +35,74 @@
   white-space: nowrap;
 }
 
+/* Tokens in variables.css. Same rules as the portal. */
+.brand-mark {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border: 1px solid var(--mark-rim);
+  border-radius: var(--mark-radius);
+  background: linear-gradient(180deg, var(--mark-top), var(--mark-bottom));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 9%),
+    0 1px 2px rgb(10 7 20 / 35%);
+  color: var(--mark-ink);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.brand-mark svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.brand:focus-visible .brand-mark {
+  border-color: var(--mark-rim-strong);
+}
+
+/* Behind the capability query like the portal: on touch, :hover stays latched
+   after a tap. */
+@media (hover: hover) {
+  .brand:hover .brand-mark {
+    border-color: var(--mark-rim-strong);
+  }
+}
+
+/* Burger, theme, search and "Log in" do not fit next to the brand on a
+   360px phone. Search goes first: it leads to the portal anyway. */
+.header-search {
+  display: none;
+}
+
+@media (width >= 30rem) {
+  .header-search {
+    display: flex;
+  }
+}
+
 .header-nav {
-  display: flex;
+  display: none;
+  align-items: center;
   gap: var(--space-5);
-  margin-inline: auto;
+}
+
+@media (width >= 64rem) {
+  .header-nav {
+    display: flex;
+  }
 }
 
 .header-actions {
   display: flex;
+  grid-column: 3;
   align-items: center;
-  gap: var(--space-3);
-  margin-left: auto;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }
 
 /* ---------- Nav links ---------- */
@@ -64,12 +129,14 @@
 }
 
 .nav-link:hover,
-.nav-link:focus-visible {
+.nav-link:focus-visible,
+.nav-link[aria-current='page'] {
   color: var(--text);
 }
 
 .nav-link:hover::after,
-.nav-link:focus-visible::after {
+.nav-link:focus-visible::after,
+.nav-link[aria-current='page']::after {
   transform: scaleX(1);
 }
 
@@ -92,7 +159,13 @@
 }
 
 .mobile-menu-btn {
-  display: none;
+  display: flex;
+}
+
+@media (width >= 64rem) {
+  .mobile-menu-btn {
+    display: none;
+  }
 }
 
 .header-action-btn:hover,
@@ -262,137 +335,132 @@ html.dark .theme-icon-sun {
 
 /* ---------- Mobile menu ---------- */
 
+/* Absolute against the sticky header, as on the portal: in flow it would push
+   the page down. Own raised surface, the header's blur alone reads as smear. */
 .mobile-menu {
-  position: fixed;
+  position: absolute;
   z-index: var(--z-menu);
-  top: var(--header-h);
+  top: 100%;
   right: 0;
   left: 0;
-  padding: var(--space-4);
+  border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   background: var(--bg-raised);
   box-shadow: var(--shadow-2);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-8px);
-  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 
-.mobile-menu.open {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
+.mobile-menu:not([hidden]) {
+  animation: menu-in var(--dur-fast) var(--ease);
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
 }
 
 .mobile-nav {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  padding-block: var(--space-4);
 }
 
-.mobile-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border);
-}
-
-.mobile-actions .sort-selector {
-  flex: 1;
-}
-
-.mobile-actions .sort-btn {
-  width: 100%;
+@media (width >= 64rem) {
+  .mobile-menu {
+    display: none;
+  }
 }
 
 /* ---------- Footer ---------- */
 
-.footer {
+/* Brand column plus one column per link group; below 48rem the groups wrap
+   under the brand. Same markup and rules as the portal footer. */
+.site-footer {
   border-top: 1px solid var(--border);
-  padding: var(--space-5) 0;
+  background: linear-gradient(to bottom, transparent, var(--accent-soft));
 }
 
-/* baseline, not center: the three items have different font sizes/families. */
-.footer-container {
+.footer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-6) var(--gutter-wide);
+  padding-block: 3.5rem var(--space-6);
+}
+
+.footer-about {
   display: flex;
-  max-width: var(--container);
-  align-items: baseline;
+  grid-column: 1 / -1;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-4);
-  margin: 0 auto;
-  padding: 0 var(--space-4);
-  flex-wrap: wrap;
 }
 
-.footer-logo a {
-  font-family: var(--font-display);
-  font-size: 0.95rem;
-  font-weight: 600;
+@media (width >= 48rem) {
+  .footer-grid {
+    grid-template-columns: 2fr repeat(3, 1fr);
+  }
+
+  .footer-about {
+    grid-column: auto;
+  }
 }
 
-.footer-nav ul {
-  display: flex;
-  gap: var(--space-4);
-  margin-inline: auto;
-}
-
-.footer-nav a {
+.footer-about p {
+  max-width: 28ch;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
+}
+
+.footer-address {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  color: var(--text);
+  font-family: ui-monospace, sfmono-regular, menlo, monospace;
+  font-size: 0.8rem;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.footer-address:hover,
+.footer-address:focus-visible {
+  border-color: var(--accent);
+}
+
+.footer-col-title {
+  color: var(--muted);
+  font-family: ui-monospace, sfmono-regular, menlo, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.footer-col ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: var(--space-4);
+}
+
+.footer-col a {
+  color: var(--muted);
+  font-size: 0.9rem;
   transition: color var(--dur-fast) var(--ease);
 }
 
-.footer-nav a:hover,
-.footer-nav a:focus-visible {
-  color: var(--accent);
+.footer-col a:hover,
+.footer-col a:focus-visible {
+  color: var(--text);
 }
 
-.footer-copyright p {
+.footer-copyright {
+  padding-block: 1.25rem 2rem;
+  border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 0.8rem;
-}
-
-.footer-legal {
-  display: flex;
-  gap: var(--space-4);
-  margin-top: var(--space-2);
-}
-
-.footer-legal a {
-  color: var(--muted);
-  transition: color var(--dur-fast) var(--ease);
-}
-
-.footer-legal a:hover,
-.footer-legal a:focus-visible {
-  color: var(--accent);
-}
-
-/* ---------- Responsive shell ---------- */
-
-@media (width <= 767px) {
-  .header-nav,
-  .header-actions .sort-selector,
-  .header-actions .theme-toggle {
-    display: none;
-  }
-
-  .mobile-menu-btn {
-    display: flex;
-  }
-
-  .footer-container {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-
-  .footer-nav ul {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
 }
 
 /* ---------- Account (Discord login) ---------- */

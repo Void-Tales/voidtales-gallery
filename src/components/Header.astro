@@ -1,41 +1,88 @@
 ---
+import BrandMark from './BrandMark.astro';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 import AccountButton from '../components/AccountButton';
-import RefreshButton from '../components/RefreshButton.astro';
-import SortSelector from '../components/SortSelector';
 import { siteConfig } from '../config/site.js';
-import { navigationLinks } from '../config/navigation.js';
----
-<header class="site-header" role="banner">
-  <div class="site-header-inner container">
-    <!-- Brand logo -->
-    <div class="brand">
-      <a href="/" class="logo">{siteConfig.name}</a>
-    </div>
+import { navigationLinks, isExternal, searchUrl } from '../config/navigation.js';
 
-    <!-- Main navigation links -->
-    <nav class="header-nav" role="navigation" aria-label="Main navigation">
+// Same markup as the portal header (voidtales-portal src/components/Header.astro):
+// three-column grid so the nav sits on the true centre, burger below 64rem.
+// Sorting and refresh are not header business, they sit above the grid.
+---
+<header class="site-header">
+  <div class="site-header-inner container">
+    <a href={siteConfig.network.url} class="brand" aria-label={`${siteConfig.network.name} home`}>
+      <BrandMark />
+      {siteConfig.network.name}
+    </a>
+
+    <nav class="header-nav" aria-label="Main navigation">
       {navigationLinks.map(link => (
-        <a href={link.href} target="_blank" rel="noopener" class="nav-link">{link.label}</a>
+        <a
+          href={link.href}
+          target={isExternal(link.href) ? '_blank' : undefined}
+          rel={isExternal(link.href) ? 'noopener' : undefined}
+          aria-current={link.current ? 'page' : undefined}
+          class="nav-link"
+        >{link.label}</a>
       ))}
     </nav>
 
-    <!-- Header actions: desktop only (SortSelector hidden on mobile via CSS) -->
     <div class="header-actions">
-      <SortSelector defaultSort={siteConfig.defaultSort} client:load />
-      <RefreshButton />
       <button
+        type="button"
         id="mobile-menu-toggle"
         class="mobile-menu-btn"
         aria-label="Toggle menu"
+        aria-expanded="false"
+        aria-controls="mobile-menu"
       >
-        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-          <path d="M4 6h16M4 12h16M4 18h16"></path>
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16"></path>
         </svg>
       </button>
       <ThemeToggle client:load />
+      <a href={searchUrl} class="header-action-btn header-search" aria-label="Search" title="Search">
+        <svg viewBox="0 0 24 24" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="M21 21l-4.3-4.3"></path>
+        </svg>
+      </a>
       <AccountButton client:load />
     </div>
   </div>
+
+  <div id="mobile-menu" hidden class="mobile-menu">
+    <nav class="container mobile-nav" aria-label="Mobile navigation">
+      {navigationLinks.map(link => (
+        <a
+          href={link.href}
+          target={isExternal(link.href) ? '_blank' : undefined}
+          rel={isExternal(link.href) ? 'noopener' : undefined}
+          aria-current={link.current ? 'page' : undefined}
+          class="nav-link"
+        >{link.label}</a>
+      ))}
+    </nav>
+  </div>
 </header>
+
+<script>
+  const menuToggle = document.getElementById('mobile-menu-toggle');
+  const menu = document.getElementById('mobile-menu');
+
+  const setMenu = (open: boolean) => {
+    menu?.toggleAttribute('hidden', !open);
+    menuToggle?.setAttribute('aria-expanded', String(open));
+  };
+
+  menuToggle?.addEventListener('click', () => setMenu(menu?.hasAttribute('hidden') ?? false));
+  // Closed again by Escape, a click outside the header, or the desktop nav
+  // taking over (tablet turned to landscape) - otherwise it reopens later
+  // by itself and aria-expanded lies. Same script as the portal.
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && setMenu(false));
+  document.addEventListener('click', (e) => {
+    if (!(e.target as Element).closest('.site-header')) setMenu(false);
+  });
+  matchMedia('(width >= 64rem)').addEventListener('change', () => setMenu(false));
+</script>

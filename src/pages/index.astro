@@ -1,9 +1,9 @@
 ---
 import { Font } from 'astro:assets';
-import ThemeToggle from '../components/ThemeToggle.jsx';
 import SortSelector from '../components/SortSelector';
+import RefreshButton from '../components/RefreshButton.astro';
+import photos from '../../public/images.json';
 import { siteConfig } from '../config/site.js';
-import { navigationLinks } from '../config/navigation.js';
 
 import '../styles/variables.css';
 import '../styles/base.css';
@@ -81,24 +81,11 @@ const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
   </head>
   <body>
     <Header />
-    {/* Mobile menu dropdown */}
-    <div id="mobile-menu" class="mobile-menu">
-      <nav class="mobile-nav" role="navigation" aria-label="Mobile navigation">
-        {navigationLinks.map(link => (
-          <a href={link.href} target="_blank" rel="noopener" class="nav-link">{link.label}</a>
-        ))}
-      </nav>
-      <div class="mobile-actions">
-        <SortSelector defaultSort={siteConfig.defaultSort} client:load />
-        <ThemeToggle client:load />
-      </div>
-    </div>
-
     {/* Hero section */}
     <section class="hero">
       {/* Halloween only (styles/halloween.css): pixel bats, nothing over the photos */}
       <div class="spuk" aria-hidden="true"><i></i><i></i><i></i></div>
-      <div class="hero-content">
+      <div class="hero-content container">
         <span class="hero-eyebrow">{siteConfig.hero.eyebrow}</span>
         <h1 class="hero-title">
           {beforeAccent}{hasAccent && <span class="accent">{titleAccent}</span>}{afterAccent}
@@ -108,7 +95,6 @@ const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
           <a
             href={siteConfig.hero.ctaLink}
             class="hero-cta"
-            target="_blank" rel="noopener noreferrer"
           >
             {siteConfig.hero.cta}
           </a>
@@ -120,21 +106,24 @@ const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
     {/* Main photo grid */}
     <div class="page-wrapper">
       <main class="container" role="main" id="photos">
+        {/* Grid controls live with the grid, not in the header (portal parity). */}
+        <div class="gallery-toolbar">
+          <div class="gallery-toolbar-title">
+            <h2>Screenshots</h2>
+            {/* ponytail: build-time count. images.json is baked into the image, so it
+                only drifts when a tab outlives a deploy and Refresh pulls the new
+                list. Update it from the refreshGallery event if that ever matters. */}
+            <span class="gallery-count">{photos.length} shots</span>
+          </div>
+          <div class="gallery-toolbar-actions">
+            <SortSelector defaultSort={siteConfig.defaultSort} client:load />
+            <RefreshButton />
+          </div>
+        </div>
         <PhotoGrid />
       </main>
       <Footer />
     </div>
 
-    {/* Mobile menu toggle script */}
-    <script>
-      // Toggle mobile menu open/close
-      const toggle = document.getElementById('mobile-menu-toggle');
-      const menu = document.getElementById('mobile-menu');
-      if (toggle && menu) {
-        toggle.addEventListener('click', () => {
-          menu.classList.toggle('open');
-        });
-      }
-    </script>
   </body>
 </html>

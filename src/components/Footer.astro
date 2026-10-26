@@ -1,42 +1,42 @@
 ---
-// Import site and navigation configuration
+import BrandMark from './BrandMark.astro';
 import { siteConfig } from '../config/site.js';
-import { navigationLinks } from '../config/navigation.js';
+import { footerColumns, isExternal, joinUrl } from '../config/navigation.js';
 
-// Get the current year for copyright
-const currentYear = new Date().getFullYear();
+const year = new Date().getFullYear();
+// Same markup as the portal footer (voidtales-portal src/components/Footer.astro).
 ---
 
-<footer class="footer">
-  <div class="footer-container">
-    {/* Site logo and link to homepage */}
-    <div class="footer-logo">
-      <a href="/">{siteConfig.name}</a>
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-about">
+        <a href={siteConfig.network.url} class="brand">
+          <BrandMark />
+          {siteConfig.network.name}
+        </a>
+        <p>{siteConfig.network.tagline}</p>
+        <a href={joinUrl} class="footer-address">{siteConfig.network.server}</a>
+      </div>
+
+      {footerColumns.map(col => (
+        <nav class="footer-col" aria-label={col.title}>
+          <p class="footer-col-title">{col.title}</p>
+          <ul>
+            {col.links.map(link => (
+              <li>
+                <a
+                  href={link.href}
+                  target={isExternal(link.href) ? '_blank' : undefined}
+                  rel={isExternal(link.href) ? 'noopener' : undefined}
+                >{link.label}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ))}
     </div>
-    {/* Footer navigation links */}
-    <nav class="footer-nav">
-      <ul>
-        {navigationLinks.map(link => (
-          <li>
-            <a href={link.href} target="_blank" rel="noopener noreferrer">
-              {link.label}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </nav>
-    {/* Copyright information */}
-    <div class="footer-copyright">
-      <p>
-        &copy; {currentYear} {siteConfig.footer.copyright}. All rights reserved.
-      </p>
-      {/* Die Pflichtseiten liegen beim Portal: gleicher Betreiber, gleiche Domain,
-          eine Pflegestelle. Eigene Zeile statt navigationLinks - die Liste oben
-          erzwingt target="_blank" fuer jeden Eintrag. */}
-      <p class="footer-legal">
-        <a href="https://portal.voidtales.win/impressum">Impressum</a>
-        <a href="https://portal.voidtales.win/datenschutz">Datenschutz</a>
-      </p>
-    </div>
+
+    <p class="footer-copyright">© {year} {siteConfig.footer.copyright}</p>
   </div>
 </footer>

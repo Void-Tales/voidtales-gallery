@@ -56,9 +56,18 @@ html[data-theme='dark'] body::before {
 }
 
 .container {
+  width: 100%;
   max-width: var(--container);
   margin: 0 auto;
   padding: 0 var(--space-4);
+}
+
+/* Same gutters as the portal's .shell, so header and footer line up when you
+   switch between the two sites. */
+@media (width >= 768px) {
+  .container {
+    padding: 0 var(--gutter-wide);
+  }
 }
 
 main.container {
@@ -66,6 +75,6 @@ main.container {
   padding-bottom: var(--space-6);
 }
 
-.footer {
+.site-footer {
   flex-shrink: 0;
 }
