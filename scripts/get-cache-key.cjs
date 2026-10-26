@@ -1,52 +1,22 @@
+// Cache key for the download cache in deploy.yml: a hash of both remote listings.
 const config = require('../src/config/externaldownload.cjs');
-const cheerio = require('cheerio');
 const crypto = require('crypto');
 const fs = require('fs');
+const { fail, fetchListing } = require('./lib/listing.cjs');
 
-const externalUrlmd = config.mdSourceUrlExternal ? config.mdSourceUrlExternal.replace(/'/g, '') : null;
-const externalUrlog = config.originalSourceUrlExternal ? config.originalSourceUrlExternal.replace(/'/g, '') : null;
-
-async function getFileNames(url, regex) {
-  try {
-    console.log(`Debug: Attempting to fetch from URL: '${url}'`);
-
-    if (!url) {
-      throw new Error('URL is undefined or empty.');
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    const html = await res.text();
-    const $ = cheerio.load(html);
-    const files = [];
-    $('a').each((_, el) => {
-      const href = $(el).attr('href');
-      if (href && regex.test(href)) {
-        files.push(href);
-      }
-    });
-    return files.sort().join('|');
-  } catch (error) {
-    console.error(`Error fetching files from ${url}:`, error.message);
-    // Kein stiller Fallback-Key: der waere konstant, wuerde den alten Cache
-    // restoren und eine unvollstaendige Galerie gruen deployen.
-    process.exit(1);
-  }
+async function names(url, pattern, label) {
+  if (!url) fail(`No external ${label} URL configured.`);
+  // No silent fallback key: it would be constant, restore the old cache and deploy
+  // an incomplete gallery green. An empty listing is an error page, not "no photos".
+  const files = await fetchListing(url.replace(/'/g, ''), pattern).catch((err) => fail(`${label} listing failed: ${err.message}`));
+  if (files.length === 0) fail(`${label} listing is empty - error page?`);
+  return files.join('|');
 }
 
 (async () => {
-  console.log(`Debug: Using externalUrlmd: '${externalUrlmd}'`);
-  console.log(`Debug: Using externalUrlog: '${externalUrlog}'`);
-
-  const mdFiles = await getFileNames(externalUrlmd, /\.md$/);
-  const originalFiles = await getFileNames(externalUrlog, /\.(png|jpe?g|webp|bmp)$/i);
-
-  const combinedString = mdFiles + '|' + originalFiles;
-  const hash = crypto.createHash('sha256').update(combinedString).digest('hex');
-
+  const md = await names(config.mdSourceUrlExternal, /\.md$/, 'markdown');
+  const originals = await names(config.originalSourceUrlExternal, /\.(png|jpe?g|webp|bmp)$/i, 'original image');
+  const hash = crypto.createHash('sha256').update(`${md}|${originals}`).digest('hex');
   console.log(`Generated cache key: ${hash}`);
-
   fs.appendFileSync(process.env.GITHUB_OUTPUT, `cache-key=${hash}\n`);
 })();
