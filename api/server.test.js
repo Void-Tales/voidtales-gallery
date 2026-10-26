@@ -149,6 +149,13 @@ test("comments: validation, sanitising, ownership, staff", async () => {
   assert.equal((await req(`/api/comments/${created.id}`, { method: "DELETE", cookie: mod })).status, 200);
   assert.equal(app.db.prepare("SELECT deleted_by FROM comments WHERE id = ?").get(created.id).deleted_by, "200");
 
+  // Kept for staff traceability, gone for good 30 days after deletion.
+  app.housekeeping();
+  assert.ok(app.db.prepare("SELECT 1 FROM comments WHERE id = ?").get(created.id));
+  app.db.prepare("UPDATE comments SET deleted_at = deleted_at - ? WHERE id = ?").run(31 * 86_400_000, created.id);
+  app.housekeeping();
+  assert.equal(app.db.prepare("SELECT 1 FROM comments WHERE id = ?").get(created.id), undefined);
+
   const list = await (await req(`/api/images/${IMG}/comments`, { cookie: alice })).json();
   assert.ok(!list.some((c) => c.id === created.id));
   assert.equal(list.find((c) => c.id === modComment.id).canDelete, false);

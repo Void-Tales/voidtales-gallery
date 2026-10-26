@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS likes (
   PRIMARY KEY (image_id, user_id)
 ) WITHOUT ROWID;
 
--- Soft delete: deleted_by keeps who removed a comment.
+-- Soft delete: deleted_by keeps who removed a comment, for 30 days after deleted_at
+-- (the privacy policy promises that), then housekeeping removes the row.
 CREATE TABLE IF NOT EXISTS comments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   image_id TEXT NOT NULL,
@@ -21,7 +22,8 @@ CREATE TABLE IF NOT EXISTS comments (
   source TEXT NOT NULL CHECK (source IN ('site', 'discord')),
   discord_msg_id TEXT,
   created INTEGER NOT NULL,
-  deleted_by TEXT
+  deleted_by TEXT,
+  deleted_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS comments_image ON comments (image_id);
 

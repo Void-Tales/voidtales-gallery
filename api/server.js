@@ -18,6 +18,7 @@ const MIN = 60_000;
 const DAY = 86_400_000;
 const SESSION_TTL = 7 * DAY;
 const RECENT = 30 * DAY;
+const PURGE_DELETED = 30 * DAY;
 const MAX_BODY = 4096;
 const MAX_COMMENT = 500;
 const IMAGE_ID = /^\d{8}$/;
@@ -256,6 +257,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
   function housekeeping() {
     try {
       q("DELETE FROM sessions WHERE expires < ?").run(now());
+      q("DELETE FROM comments WHERE deleted_at < ?").run(now() - PURGE_DELETED);
       if (!env.BACKUP_PATH) return;
       const day = new Date(now()).toISOString().slice(0, 10);
       if (kvGet("backup_day") === day) return;
@@ -514,7 +516,11 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
       if (!row) return send(res, 404, { error: "not_found" });
       if (row.source !== "site" || (row.user_id !== sess.user_id && !sess.is_staff))
         return send(res, 403, { error: "forbidden" });
-      q("UPDATE comments SET deleted_by = ? WHERE id = ?").run(sess.user_id, Number(deleteMatch[1]));
+      q("UPDATE comments SET deleted_by = ?, deleted_at = ? WHERE id = ?").run(
+        sess.user_id,
+        now(),
+        Number(deleteMatch[1]),
+      );
       return send(res, 200, { ok: true });
     }
 
