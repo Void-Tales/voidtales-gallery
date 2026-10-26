@@ -16,8 +16,10 @@ const N8N = "1404876556425494548";
 const snow = (ms) => String((BigInt(ms - 1420070400000) << 22n) + 1n);
 const T = Date.parse("2026-10-20T12:00:00Z");
 
-// Fake Discord: path -> JSON (or a status number).
+// Fake Discord: path -> JSON (or a status number). Writes are recorded and answered by onWrite.
 const discord = new Map();
+const writes = [];
+let onWrite = () => json({}, 404);
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
 async function fakeFetch(url, init = {}) {
   const u = new URL(url);
@@ -36,6 +38,11 @@ async function fakeFetch(url, init = {}) {
     return members[who] ? json(members[who]) : json({ message: "Unknown Guild" }, 404);
   }
   const key = u.pathname.replace("/api/v10", "") + u.search;
+  if (init.method && init.method !== "GET") {
+    const body = init.body ? JSON.parse(init.body) : undefined;
+    writes.push({ method: init.method, path: key, body });
+    return onWrite(init.method, key, body);
+  }
   const hit = discord.get(key) ?? discord.get(u.pathname.replace("/api/v10", ""));
   if (typeof hit === "number") return json({}, hit);
   return hit ? json(hit) : json([], 200);
@@ -238,4 +245,153 @@ test("discord sync: maps summaries to posts and dedupes likes with the site", as
   );
   // The cursor stops the next scan before already seen messages.
   assert.equal(app.db.prepare("SELECT value FROM kv WHERE key = ?").get(`cursor:${GALLERY}`).value, backfill);
+});
+
+// A logged-in user of its own, so no earlier test's rate limit counts.
+function session(token, userId, name, avatar = null) {
+  app.db
+    .prepare("INSERT INTO sessions (token_hash, user_id, name, avatar, is_staff, expires) VALUES (?, ?, ?, ?, 0, ?)")
+    .run(createHash("sha256").update(token).digest("hex"), userId, name, avatar, Date.now() * 2);
+  return `__Host-vt_sess=${token}`;
+}
+
+test("site comments go to the post's thread and come back out", async () => {
+  const BOT = "4242";
+  const P2 = snow(T + 3_600_000);
+  const HOOK = { id: "9001", token: "hooktoken", user: { id: BOT } };
+  // Earlier tests left site comments on IMG; they are not what this test is about.
+  app.db.prepare("UPDATE comments SET discord_msg_id = '-' WHERE source = 'site'").run();
+  app.db.prepare("INSERT OR REPLACE INTO image_posts (image_id, channel_id, message_id) VALUES (?, ?, ?)").run(IMG2, GALLERY, P2);
+  discord.set("/users/@me", { id: BOT });
+  discord.set(`/channels/${GALLERY}/webhooks`, []);
+  discord.set(`/channels/${GALLERY}/messages/${P2}`, { id: P2, content: "Sunset over <@1> the bay\nmore https://x.y" });
+
+  let sent = 0;
+  let sendStatus = 200;
+  onWrite = (method, path, body) => {
+    if (path === `/channels/${GALLERY}/messages/${P2}/threads`) {
+      discord.set(`/channels/${GALLERY}/messages/${P2}`, { id: P2, thread: { id: P2, thread_metadata: {} } });
+      return json({ id: P2, name: body.name });
+    }
+    if (path === `/channels/${GALLERY}/webhooks`) return json(HOOK);
+    if (path.startsWith(`/webhooks/${HOOK.id}/${HOOK.token}?`))
+      return sendStatus === 200 ? json({ id: snow(T + 86_400_000 - 1000 + sent++) }) : json({ code: sendStatus === 404 ? 10015 : 0 }, sendStatus);
+    if (method === "DELETE") return new Response(null, { status: 204 });
+    return json({}, 404);
+  };
+  const cookie = session("alice-mirror", "101", "alice");
+  const comment = (body) => req(`/api/images/${IMG2}/comments`, { method: "POST", cookie, body: { body } });
+  const row = (id) => app.db.prepare("SELECT discord_msg_id, deleted_by FROM comments WHERE id = ?").get(id);
+
+  // A run without work must not leave the mirror blocked (it once did: the reset ran before the assignment).
+  await app.mirror();
+
+  // First comment: the bot opens the thread (named after the post), makes the webhook, posts as alice.
+  writes.length = 0;
+  const first = await (await comment("@everyone look at this")).json();
+  // Sent right after the POST, not only with the next sync.
+  for (let i = 0; i < 50 && !row(first.id).discord_msg_id; i++) await new Promise((r) => setTimeout(r, 2));
+  assert.match(row(first.id).discord_msg_id ?? "", /^\d+$/, "sent without waiting for the sync");
+  assert.deepEqual(
+    writes.map((w) => `${w.method} ${w.path.split("?")[0]}`),
+    [`POST /channels/${GALLERY}/messages/${P2}/threads`, `POST /channels/${GALLERY}/webhooks`, `POST /webhooks/${HOOK.id}/${HOOK.token}`],
+  );
+  assert.equal(writes[0].body.name, "Sunset over  the bay");
+  assert.equal(writes[1].body.name, "Void Tales Gallery");
+  const exec = writes[2];
+  assert.equal(exec.path, `/webhooks/${HOOK.id}/${HOOK.token}?wait=true&thread_id=${P2}`);
+  assert.equal(exec.body.username, "alice · via Gallery");
+  assert.deepEqual(exec.body.allowed_mentions, { parse: [] }, "no @everyone from the site");
+  assert.equal(exec.body.content, `@everyone look at this\n-# [View in the gallery](<${ORIGIN}/#img-${IMG2}>)`);
+  const firstMsg = row(first.id).discord_msg_id;
+  assert.match(firstMsg, /^\d+$/);
+
+  // Nothing is sent twice: the next run finds no work, the webhook is reused from memory.
+  writes.length = 0;
+  await app.mirror();
+  assert.equal(writes.length, 0);
+
+  // The sync sees our webhook message in the thread and neither imports nor deletes it.
+  discord.set(`/channels/${P2}/messages?limit=100`, [
+    { id: firstMsg, webhook_id: HOOK.id, author: { id: HOOK.id, bot: true }, content: exec.body.content },
+  ]);
+  await app.syncPost(GALLERY, P2);
+  const mine = async () =>
+    (await (await req(`/api/images/${IMG2}/comments`)).json()).filter((c) => c.id >= first.id).map((c) => [c.id, c.source]);
+  assert.deepEqual(await mine(), [[first.id, "site"]]);
+
+  // Discord is down: the comment waits, counts as backlog once it's late, and goes out on the next run.
+  sendStatus = 503;
+  const second = await (await comment("second")).json();
+  await app.mirror();
+  assert.equal(row(second.id).discord_msg_id, null);
+  assert.equal((await (await req("/api/health")).json()).mirrorBacklog, 0, "not late yet");
+  app.db.prepare("UPDATE comments SET created = created - ? WHERE id = ?").run(31 * 60_000, second.id);
+  assert.equal((await (await req("/api/health")).json()).mirrorBacklog, 1);
+  // Meanwhile someone deleted the webhook (10015): it is made again, then the comment goes out.
+  sendStatus = 404;
+  await app.mirror();
+  assert.equal(row(second.id).discord_msg_id, null);
+  sendStatus = 200;
+  writes.length = 0;
+  await app.mirror();
+  assert.deepEqual(writes.map((w) => `${w.method} ${w.path.split("?")[0]}`), [
+    `POST /channels/${GALLERY}/webhooks`,
+    `POST /webhooks/${HOOK.id}/${HOOK.token}`,
+  ]);
+  const secondMsg = row(second.id).discord_msg_id;
+  assert.match(secondMsg, /^\d+$/);
+  assert.equal((await (await req("/api/health")).json()).mirrorBacklog, 0);
+
+  // Deleted on the site: the bot removes the Discord message too.
+  writes.length = 0;
+  assert.equal((await req(`/api/comments/${second.id}`, { method: "DELETE", cookie })).status, 200);
+  await app.mirror();
+  assert.deepEqual(writes.map((w) => `${w.method} ${w.path}`), [`DELETE /channels/${P2}/messages/${secondMsg}`]);
+  assert.equal(row(second.id).discord_msg_id, null);
+
+  // Deleted in Discord: gone from the site with the next sync.
+  discord.set(`/channels/${P2}/messages?limit=100`, []);
+  await app.syncPost(GALLERY, P2);
+  assert.deepEqual({ ...row(first.id) }, { discord_msg_id: null, deleted_by: "discord" });
+  assert.deepEqual(await mine(), []);
+
+  // A locked thread takes nothing; the comment stays on the site and is never retried.
+  discord.set(`/channels/${GALLERY}/messages/${P2}`, { id: P2, thread: { id: P2, thread_metadata: { locked: true } } });
+  writes.length = 0;
+  const third = await (await comment("third")).json();
+  await app.mirror();
+  assert.equal(writes.length, 0);
+  assert.equal(row(third.id).discord_msg_id, "-");
+});
+
+test("thread race and webhook names", async () => {
+  const P3 = snow(T + 7_200_000);
+  app.db.prepare("UPDATE comments SET discord_msg_id = '-' WHERE discord_msg_id IS NULL").run();
+  app.db.prepare("INSERT OR REPLACE INTO image_posts (image_id, channel_id, message_id) VALUES (?, ?, ?)").run(IMG2, GALLERY, P3);
+  discord.set(`/channels/${GALLERY}/messages/${P3}`, { id: P3, content: "" });
+  onWrite = (_method, path) => {
+    // Someone opened the thread in Discord in the same moment.
+    if (path.endsWith("/threads")) {
+      discord.set(`/channels/${GALLERY}/messages/${P3}`, { id: P3, thread: { id: P3, thread_metadata: { archived: true } } });
+      return json({ code: 160004 }, 400);
+    }
+    if (path.startsWith("/webhooks/")) return json({ id: snow(T + 86_400_000) });
+    return json({}, 404);
+  };
+  writes.length = 0;
+  // Straight into the table and one single run: the race has to be handled in that run.
+  const c = {
+    id: Number(
+      app.db
+        .prepare("INSERT INTO comments (image_id, user_id, name, avatar, body, source, created) VALUES (?, '555', 'Discord Fan', 'https://cdn/x.png', 'hi', 'site', ?)")
+        .run(IMG2, T + 86_400_000).lastInsertRowid,
+    ),
+  };
+  await app.mirror();
+  const exec = writes.find((w) => w.path.startsWith("/webhooks/"));
+  assert.equal(exec.path.split("thread_id=")[1], P3, "archived thread: the webhook reopens it");
+  assert.equal(exec.body.username, "Fan · via Gallery");
+  assert.equal(exec.body.avatar_url, "https://cdn/x.png");
+  assert.match(app.db.prepare("SELECT discord_msg_id FROM comments WHERE id = ?").get(c.id).discord_msg_id, /^\d+$/);
 });

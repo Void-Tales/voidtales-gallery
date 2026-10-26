@@ -3,7 +3,8 @@
 //
 // Writing needs a Discord login and membership in the Void Tales guild; reading is
 // public. A timer mirrors reactions and thread replies on the original Discord
-// posts into the same tables (one way: Discord -> site).
+// posts into the same tables; site comments go the other way into the post's
+// thread, through a channel webhook that carries the commenter's name.
 
 import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
@@ -19,6 +20,13 @@ const DAY = 86_400_000;
 const SESSION_TTL = 7 * DAY;
 const RECENT = 30 * DAY;
 const PURGE_DELETED = 30 * DAY;
+// Site comments older than this are not sent to Discord any more (a long Discord outage,
+// or comments from before the mirror existed).
+const MIRROR_WINDOW = 7 * DAY;
+// /api/health counts what has waited longer than this for Discord (alert GalleryMirrorBacklog).
+const MIRROR_LATE = 30 * MIN;
+const WEBHOOK_NAME = "Void Tales Gallery";
+const VIA = " · via Gallery";
 const MAX_BODY = 4096;
 const MAX_COMMENT = 500;
 const IMAGE_ID = /^\d{8}$/;
@@ -74,7 +82,15 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
   const kvGet = (key) => q("SELECT value FROM kv WHERE key = ?").get(key)?.value;
   const kvSet = (key, value) => q("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)").run(key, String(value));
 
-  const state = { images: new Set(), lastSync: 0, lastFullSync: 0, syncing: false };
+  // images: id -> title. webhooks: channel -> "id/token", only in memory so the token stays out of the backups.
+  const state = {
+    images: new Map(),
+    webhooks: new Map(),
+    botId: null,
+    lastSync: 0,
+    lastFullSync: 0,
+    syncing: false,
+  };
 
   // ponytail: in-memory sliding windows, reset on restart; one process is all there is.
   const hits = new Map();
@@ -92,8 +108,13 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
 
   // ---------- Discord ----------
 
+  // The timeout keeps a hanging request from blocking sync or mirror for good.
   async function discord(path, init = {}, tries = 3) {
-    const res = await fetch(DISCORD + path, { ...init, headers: { "User-Agent": UA, ...init.headers } });
+    const res = await fetch(DISCORD + path, {
+      signal: AbortSignal.timeout(30_000),
+      ...init,
+      headers: { "User-Agent": UA, ...init.headers },
+    });
     if (res.status === 429 && tries > 0) {
       const body = await res.json().catch(() => ({}));
       await sleep((Number(body.retry_after) || 1) * 1000 + 250);
@@ -108,6 +129,14 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     if (!res.ok) throw new Error(`discord ${res.status} on ${path.split("?")[0]}`);
     return res.json();
   }
+
+  const botWrite = (method, path, body) =>
+    discord(path, {
+      method,
+      headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`, "Content-Type": "application/json" },
+      body: body && JSON.stringify(body),
+    });
+  const errorCode = async (res) => (await res.json().catch(() => ({}))).code;
 
   // The n8n workflow answers every post with a summary that carries the image IDs in
   // its delete links. Backfill summaries reply to the post; live ones are plain
@@ -179,9 +208,12 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     const imageIds = q("SELECT image_id FROM image_posts WHERE message_id = ?")
       .all(messageId)
       .map((r) => r.image_id);
+    const fetchedAt = now();
     const msg = await botJson(`/channels/${channelId}/messages/${messageId}`);
     const users = new Set();
     const replies = [];
+    // IDs of everything in the thread, null when there is no thread to compare against.
+    let inThread = null;
     if (msg) {
       for (const r of msg.reactions ?? []) {
         if (!likeEmojis.has(bareEmoji(r.emoji.name ?? ""))) continue;
@@ -191,9 +223,12 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
       }
       // A thread started from a message shares its ID.
       if (msg.thread) {
+        inThread = new Set();
         for (const m of await pages(`/channels/${msg.thread.id}/messages`, "before")) {
+          inThread.add(m.id);
           const body = (m.content ?? "").replace(UNSAFE_CHARS, "").trim().slice(0, 2000);
-          if (m.author?.bot || !body) continue;
+          // Webhook messages are our own site comments; importing them would double them.
+          if (m.author?.bot || m.webhook_id || !body) continue;
           replies.push({ m, body });
         }
       }
@@ -218,9 +253,158 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
             m.id,
             Date.parse(m.timestamp) || snowflakeTime(m.id),
           );
+        // A mirrored site comment removed in Discord (by staff or the author's report) goes on the
+        // site too. Only messages older than this fetch count: one sent meanwhile isn't in the list yet.
+        if (!inThread) continue;
+        const gone = q(
+          "SELECT id, discord_msg_id FROM comments WHERE image_id = ? AND source = 'site' AND deleted_by IS NULL AND discord_msg_id GLOB '[0-9]*'",
+        )
+          .all(imageId)
+          .filter((c) => !inThread.has(c.discord_msg_id) && snowflakeTime(c.discord_msg_id) < fetchedAt);
+        for (const c of gone)
+          q("UPDATE comments SET deleted_by = 'discord', deleted_at = ?, discord_msg_id = NULL WHERE id = ?").run(
+            now(),
+            c.id,
+          );
       }
     });
   }
+
+  // ---------- Site -> Discord ----------
+  //
+  // discord_msg_id of a site comment: NULL = not sent yet, "-" = will never be sent (post
+  // gone, thread locked), digits = the webhook message. A deleted comment that still has
+  // digits waits for its Discord message to be removed. Both queues are retried on every
+  // sync, so a Discord outage only delays.
+
+  // Webhooks created by the bot, one per channel, found again after a restart.
+  async function webhook(channelId) {
+    const cached = state.webhooks.get(channelId);
+    if (cached) return cached;
+    state.botId ??= (await botJson("/users/@me")).id;
+    let hook = ((await botJson(`/channels/${channelId}/webhooks`)) ?? []).find(
+      (w) => w.user?.id === state.botId && w.token,
+    );
+    if (!hook) {
+      const res = await botWrite("POST", `/channels/${channelId}/webhooks`, { name: WEBHOOK_NAME });
+      if (!res.ok) throw new Error(`discord ${res.status} creating webhook`);
+      hook = await res.json();
+    }
+    state.webhooks.set(channelId, `${hook.id}/${hook.token}`);
+    return state.webhooks.get(channelId);
+  }
+
+  // The post's thread, started by the bot when nobody has yet. Null when the post is gone.
+  async function thread(channelId, messageId, imageId) {
+    const msg = await botJson(`/channels/${channelId}/messages/${messageId}`);
+    if (!msg || msg.thread) return msg?.thread ?? null;
+    const name = (msg.content ?? "").replace(/<[^>]*>|https?:\/\/\S+/g, "").split("\n")[0].trim();
+    const res = await botWrite("POST", `/channels/${channelId}/messages/${messageId}/threads`, {
+      name: (name || state.images.get(imageId) || "Comments").slice(0, 100),
+      auto_archive_duration: 10080,
+    });
+    if (res.ok) return res.json();
+    // 160004: someone opened a thread in Discord a moment earlier.
+    if ((await errorCode(res)) === 160004)
+      return (await botJson(`/channels/${channelId}/messages/${messageId}`))?.thread ?? null;
+    throw new Error(`discord ${res.status} creating thread`);
+  }
+
+  // Webhook names can't contain "discord" or "clyde" and are at most 80 characters.
+  const webhookName = (name) =>
+    (name.replace(/discord|clyde/gi, "").replace(/\s+/g, " ").trim() || "Someone").slice(0, 80 - VIA.length) + VIA;
+
+  const setMsg = (id, value) => q("UPDATE comments SET discord_msg_id = ? WHERE id = ?").run(value, id);
+
+  async function deliver(c) {
+    const t = await thread(c.channel_id, c.message_id, c.image_id);
+    // Archived threads reopen on their own when the webhook posts; locked ones stay closed.
+    if (!t || t.thread_metadata?.locked) return setMsg(c.id, "-");
+    const hook = await webhook(c.channel_id);
+    const res = await discord(`/webhooks/${hook}?wait=true&thread_id=${t.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: webhookName(c.name),
+        avatar_url: c.avatar ?? undefined,
+        content: `${c.body}\n-# [View in the gallery](<${origin}/#img-${c.image_id}>)`,
+        allowed_mentions: { parse: [] },
+      }),
+    });
+    if (res.ok) {
+      // The comment may have been deleted on the site while this was in flight; then the
+      // delete queue picks the new message up on the next run.
+      setMsg(c.id, (await res.json()).id);
+      return;
+    }
+    const code = await errorCode(res);
+    // 10015: someone deleted the webhook; the next run makes a new one.
+    if (code === 10015) state.webhooks.delete(c.channel_id);
+    else if (res.status === 400 || res.status === 404) {
+      console.warn(`[mirror] comment ${c.id} not sent: discord ${res.status}/${code}`);
+      return setMsg(c.id, "-");
+    }
+    throw new Error(`discord ${res.status}/${code} sending comment ${c.id}`);
+  }
+
+  // The bot (admin) deletes, not the webhook: that also works after the webhook was replaced.
+  async function unsend(c) {
+    const res = await botWrite("DELETE", `/channels/${c.message_id}/messages/${c.discord_msg_id}`);
+    // 404: the message or the whole thread is already gone.
+    if (!res.ok && res.status !== 404) throw new Error(`discord ${res.status} deleting comment ${c.id}`);
+    setMsg(c.id, null);
+  }
+
+  const outbox = (deleted, since = 0) =>
+    q(
+      `SELECT c.id, c.image_id, c.name, c.avatar, c.body, c.discord_msg_id, c.created, p.channel_id, p.message_id
+       FROM comments c JOIN image_posts p USING (image_id)
+       WHERE c.source = 'site' AND ${
+         deleted
+           ? "c.deleted_by IS NOT NULL AND c.discord_msg_id GLOB '[0-9]*'"
+           : "c.deleted_by IS NULL AND c.discord_msg_id IS NULL AND c.created > ?"
+       } ORDER BY c.id`,
+    ).all(...(deleted ? [] : [since]));
+
+  // One run at a time; a call during a run asks for one more pass and waits for it.
+  // One comment failing doesn't hold up the others; it is retried next time.
+  let running = null;
+  let again = false;
+  function mirror() {
+    if (!env.DISCORD_BOT_TOKEN) return Promise.resolve();
+    if (running) {
+      again = true;
+      return running;
+    }
+    // .finally() and not try/finally: a run without work finishes synchronously, and the
+    // reset would then happen before the assignment and leave `running` set for good.
+    running = (async () => {
+      do {
+        again = false;
+        for (const c of outbox(false, now() - MIRROR_WINDOW))
+          await deliver(c).catch((err) => console.error("[mirror]", err.message));
+        for (const c of outbox(true)) await unsend(c).catch((err) => console.error("[mirror]", err.message));
+      } while (again);
+    })().finally(() => {
+      running = null;
+    });
+    return running;
+  }
+
+  // Right after a write, without waiting for it; whatever fails here the next sync retries.
+  const kick = () => mirror().catch((err) => console.error("[mirror]", err.message));
+
+  // What has waited too long for Discord, either way.
+  const mirrorBacklog = () => {
+    if (!env.DISCORD_BOT_TOKEN) return 0;
+    const late = now() - MIRROR_LATE;
+    return (
+      outbox(false, now() - MIRROR_WINDOW).filter((c) => c.created < late).length +
+      q(
+        "SELECT COUNT(*) AS n FROM comments WHERE source = 'site' AND deleted_by IS NOT NULL AND discord_msg_id GLOB '[0-9]*' AND deleted_at < ?",
+      ).get(late).n
+    );
+  };
 
   // Recent posts every run, all of them once a day.
   async function sync() {
@@ -232,6 +416,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
       const posts = q("SELECT DISTINCT channel_id, message_id FROM image_posts").all();
       for (const p of posts)
         if (full || now() - snowflakeTime(p.message_id) < RECENT) await syncPost(p.channel_id, p.message_id);
+      await mirror();
       state.lastSync = now();
       if (full) state.lastFullSync = now();
     } catch (err) {
@@ -245,8 +430,8 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     try {
       const res = await fetch(`${env.IMAGES_URL || `${origin}/images.json`}?t=${now()}`);
       if (!res.ok) throw new Error(`images.json ${res.status}`);
-      const ids = (await res.json()).map((i) => String(i.id)).filter((id) => IMAGE_ID.test(id));
-      state.images = new Set(ids);
+      const images = (await res.json()).filter((i) => IMAGE_ID.test(String(i.id)));
+      state.images = new Map(images.map((i) => [String(i.id), String(i.title ?? "")]));
     } catch (err) {
       console.error("[images]", err.message);
     }
@@ -406,7 +591,12 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     const method = req.method;
 
     if (method === "GET" && path === "/api/health")
-      return send(res, 200, { ok: true, images: state.images.size, lastSync: state.lastSync });
+      return send(res, 200, {
+        ok: true,
+        images: state.images.size,
+        lastSync: state.lastSync,
+        mirrorBacklog: mirrorBacklog(),
+      });
 
     if (method === "GET" && path === "/api/stats") {
       const stats = {};
@@ -497,6 +687,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
         "INSERT INTO comments (image_id, user_id, name, avatar, body, source, created) VALUES (?, ?, ?, ?, ?, 'site', ?)",
       ).run(imageId, sess.user_id, sess.name, sess.avatar, body, created);
       notifyStaff(imageId, sess.name, body);
+      kick();
       return send(res, 201, {
         id: Number(lastInsertRowid),
         name: sess.name,
@@ -521,6 +712,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
         now(),
         Number(deleteMatch[1]),
       );
+      kick();
       return send(res, 200, { ok: true });
     }
 
@@ -538,7 +730,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     }
   }
 
-  return { db, state, handle, sync, syncPost, refreshImages, housekeeping };
+  return { db, state, handle, sync, syncPost, mirror, refreshImages, housekeeping };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

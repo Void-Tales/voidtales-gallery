@@ -11,9 +11,20 @@ no CORS, the session cookie stays first-party.
   access token is not stored at all.
 - **Discord mirror**: every 10 minutes (posts from the last 30 days, all posts once a day) the configured like
   emojis on the original Discord post count as likes for every image of that post, and replies in the post's
-  thread show up as comments. One way only; Discord stays the place to moderate those.
+  thread show up as comments; Discord stays the place to moderate those.
   The image → post mapping comes from the n8n summary messages (image IDs in the delete links). The n8n workflow
   itself is never changed for this.
+- **Site comments go to Discord too**: right after posting (and retried on every sync) a site comment is sent to
+  the post's thread through a channel webhook named "Void Tales Gallery", as `<name> · via Gallery` with the
+  commenter's avatar and a link back to the image; mentions are disabled. The bot opens the thread when the post
+  has none and makes the webhook on first use (it needs *Manage Webhooks*, *Create Public Threads* and *Manage
+  Messages* in the gallery channels; the VoidBot is admin). Archived threads reopen by themselves; locked
+  threads, deleted posts and comments older than 7 days are skipped. Deleting on the site deletes the Discord
+  message; staff deleting the message in Discord deletes the comment on the site with the next sync
+  (`deleted_by = 'discord'`). State lives in `comments.discord_msg_id`: `NULL` = not sent yet, `-` = never
+  will be, digits = the Discord message. The webhook token is only kept in memory, not in the database.
+  `/api/health` reports `mirrorBacklog`, the number of comments that waited more than 30 minutes for Discord
+  in either direction (alert `GalleryMirrorBacklog`).
 - Staff (Discord roles in `STAFF_ROLE_IDS`) can delete any site comment; everyone can delete their own. Deleting
   is a soft delete (`deleted_by`).
 - Once a day `VACUUM INTO` writes a consistent copy to `BACKUP_PATH` for the offsite pull.
