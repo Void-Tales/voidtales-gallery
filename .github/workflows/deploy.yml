@@ -146,14 +146,6 @@ jobs:
             EXT_DL_URL_MARKDOWN_EXTERNAL=${{ env.EXT_DL_URL_MARKDOWN_EXTERNAL }}
             EXT_DL_URL_ORIGINAL_EXTERNAL=${{ env.EXT_DL_URL_ORIGINAL_EXTERNAL }}
 
-      # 🚮 Purge images.json from Cloudflare cache
-      - name: 🚮 Purge images.json from Cloudflare cache
-        run: |
-          curl -fsS -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/purge_cache" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            --data '{"files":["https://gallery.voidtales.win/images.json"]}'
-
       # 🚀 Trigger Dokploy deployment
       # App-bound deploy webhook (Settings → General → Deployments in Dokploy):
       # no auth header, and it deploys exactly this one app — unlike the
