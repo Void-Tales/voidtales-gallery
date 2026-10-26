@@ -17,6 +17,7 @@
   --accent-ink: #fff;
   --accent-soft: rgb(109 40 217 / 10%);
   --glow: transparent;
+  --like: #d6336c;
 
   /* Skeleton */
   --skeleton-base: rgb(23 19 31 / 6%);
@@ -66,6 +67,7 @@ html[data-theme='dark'] {
   --accent-ink: #0a0714;
   --accent-soft: rgb(167 139 250 / 14%);
   --glow: rgb(167 139 250 / 45%);
+  --like: #f472b6;
   --skeleton-base: rgb(236 232 246 / 4%);
   --skeleton-shimmer: rgb(236 232 246 / 9%);
   --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);

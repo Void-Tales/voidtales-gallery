@@ -194,3 +194,38 @@
     gap: var(--space-2);
   }
 }
+
+/* ---------- Likes / comments on the card ---------- */
+
+/* Always visible (unlike the caption): the numbers are what "Popular" sorts by. */
+.photo-social {
+  position: absolute;
+  z-index: 3;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  gap: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.photo-social > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.photo-social svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  fill: currentcolor;
+}
+
+.photo-social .liked svg {
+  fill: var(--like);
+}

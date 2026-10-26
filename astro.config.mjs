@@ -28,5 +28,10 @@ export default defineConfig({
       cssVariable: '--font-instrument-sans',
       weights: [400, 500, 600],
     },
-  ]
+  ],
+
+  // `pnpm run dev` only: likes/comments come from gallery-api (api/), run it on :3000.
+  vite: {
+    server: { proxy: { '/api': 'http://localhost:3000' } },
+  },
 });
