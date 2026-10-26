@@ -45,6 +45,10 @@
   --container: 72rem;
   --header-h: 4.5rem;
 
+  /* Lightbox (always dark, independent of the theme) */
+  --lightbox-panel: #120d1e;
+  --lightbox-panel-w: clamp(20rem, 26vw, 24rem);
+
   /* Depth */
   --z-grid: 1;
   --z-header: 50;
