@@ -93,6 +93,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
   };
 
   // ponytail: in-memory sliding windows, reset on restart; one process is all there is.
+  // Housekeeping drops keys idle for a day, so the map stays as big as the recent users.
   const hits = new Map();
   function limited(key, max, windowMs) {
     const t = now();
@@ -355,6 +356,31 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     setMsg(c.id, null);
   }
 
+  // Unliking a Discord like takes the reaction off the post, or the next sync brings it back.
+  // We don't know which like emoji the user picked, so every one on the post goes.
+  // Returns false when Discord refused; the like then stays.
+  async function unreact(imageId, userId) {
+    const post = q("SELECT channel_id, message_id FROM image_posts WHERE image_id = ?").get(imageId);
+    if (!post) return true;
+    const path = `/channels/${post.channel_id}/messages/${post.message_id}`;
+    const msg = await botJson(path);
+    for (const r of msg?.reactions ?? []) {
+      if (!likeEmojis.has(bareEmoji(r.emoji.name ?? ""))) continue;
+      const emoji = encodeURIComponent(r.emoji.id ? `${r.emoji.name}:${r.emoji.id}` : r.emoji.name);
+      const res = await botWrite("DELETE", `${path}/reactions/${emoji}/${userId}`);
+      // 404: reaction or message already gone.
+      if (!res.ok && res.status !== 404) {
+        console.warn(`[unlike] image ${imageId}: discord ${res.status}/${await errorCode(res)}`);
+        return false;
+      }
+    }
+    // The reaction counted for every image of the post.
+    q(
+      "DELETE FROM likes WHERE user_id = ? AND source = 'discord' AND image_id IN (SELECT image_id FROM image_posts WHERE message_id = ?)",
+    ).run(userId, post.message_id);
+    return true;
+  }
+
   const outbox = (deleted, since = 0) =>
     q(
       `SELECT c.id, c.image_id, c.name, c.avatar, c.body, c.discord_msg_id, c.created, p.channel_id, p.message_id
@@ -443,6 +469,8 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     try {
       q("DELETE FROM sessions WHERE expires < ?").run(now());
       q("DELETE FROM comments WHERE deleted_at < ?").run(now() - PURGE_DELETED);
+      // DAY is the longest rate limit window; older hits can't count any more.
+      for (const [key, times] of hits) if (now() - times.at(-1) >= DAY) hits.delete(key);
       if (!env.BACKUP_PATH) return;
       const day = new Date(now()).toISOString().slice(0, 10);
       if (kvGet("backup_day") === day) return;
@@ -660,14 +688,17 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
       const imageId = likeMatch[1];
       if (!state.images.has(imageId)) return send(res, 404, { error: "unknown_image" });
       if (limited(`like:${sess.user_id}`, 60, MIN)) return send(res, 429, { error: "rate_limited" });
-      const removed = q("DELETE FROM likes WHERE image_id = ? AND user_id = ?").run(imageId, sess.user_id);
-      if (removed.changes === 0)
+      const had = q("SELECT source FROM likes WHERE image_id = ? AND user_id = ?").get(imageId, sess.user_id);
+      if (had?.source === "discord" && !(await unreact(imageId, sess.user_id).catch(() => false)))
+        return send(res, 409, { error: "discord_unlike_failed", liked: true, likes: likeCount(imageId) });
+      if (had) q("DELETE FROM likes WHERE image_id = ? AND user_id = ?").run(imageId, sess.user_id);
+      else
         q("INSERT INTO likes (image_id, user_id, source, created) VALUES (?, ?, 'site', ?)").run(
           imageId,
           sess.user_id,
           now(),
         );
-      return send(res, 200, { liked: removed.changes === 0, likes: likeCount(imageId) });
+      return send(res, 200, { liked: !had, likes: likeCount(imageId) });
     }
 
     if (method === "POST" && commentsMatch) {

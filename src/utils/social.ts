@@ -79,6 +79,7 @@ const ERRORS: Record<number, string> = {
   403: "Not allowed.",
   413: "That comment is too long (500 characters max).",
   429: "Slow down a little and try again in a minute.",
+  409: "This like is a reaction in Discord and Discord didn't let us remove it. Remove it there.",
 };
 
 async function send(method: string, path: string, body?: unknown) {
