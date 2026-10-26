@@ -7,18 +7,18 @@ const PORTAL = siteConfig.network.url;
 
 export const navigationLinks = [
   { label: 'Home', href: `${PORTAL}/` },
-  { label: 'Wiki', href: `${PORTAL}/wiki` },
-  { label: 'Items', href: `${PORTAL}/items` },
+  { label: 'Wiki', href: `${PORTAL}/wiki/` },
+  { label: 'Items', href: `${PORTAL}/items/` },
   // This site: always the highlighted entry in the header.
   { label: 'Gallery', href: '/', current: true },
-  { label: 'News', href: `${PORTAL}/news` },
-  { label: 'Devlog', href: `${PORTAL}/devlog` },
+  { label: 'News', href: `${PORTAL}/news/` },
+  { label: 'Devlog', href: `${PORTAL}/devlog/` },
   // ponytail: the raw invite, not discord.voidtales.win — that vanity host 404s.
   { label: 'Discord', href: 'https://discord.gg/QEMQsFect6' },
   { label: 'World Map', href: 'https://dynmap.voidtales.win' },
 ];
 
-export const searchUrl = `${PORTAL}/search`;
+export const searchUrl = `${PORTAL}/search/`;
 export const joinUrl = `${PORTAL}/#join`;
 
 // In nav order, whatever order the labels come in.
@@ -36,8 +36,8 @@ export const footerColumns = [
   {
     title: 'Legal',
     links: [
-      { label: 'Impressum', href: `${PORTAL}/impressum` },
-      { label: 'Datenschutz', href: `${PORTAL}/datenschutz` },
+      { label: 'Impressum', href: `${PORTAL}/impressum/` },
+      { label: 'Datenschutz', href: `${PORTAL}/datenschutz/` },
     ],
   },
 ];

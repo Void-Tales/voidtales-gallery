@@ -73,13 +73,22 @@ export default function SortSelector({ defaultSort = "date-desc" }: { defaultSor
     }
   };
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click, and on Escape back to the button
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (!(e.target as Element).closest('.sort-selector')) setIsOpen(false);
     };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !(e.target as Element).closest?.('.sort-selector')) return;
+      setIsOpen(false);
+      buttonRef.current?.focus();
+    };
     document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, []);
 
   // Listen for refresh event and sync sort selection
@@ -97,9 +106,12 @@ export default function SortSelector({ defaultSort = "date-desc" }: { defaultSor
     <div class={`sort-selector ${isOpen ? 'open' : ''}`}>
       <button
         ref={buttonRef}
+        type="button"
         class="sort-btn"
         onClick={toggleDropdown}
-        aria-label="Sort gallery"
+        aria-label={`Sort gallery: ${currentOption?.label ?? ""}`}
+        aria-expanded={isOpen}
+        aria-controls="sort-dropdown"
         title="Sort gallery"
       >
         <span class="sort-icon">{currentOption?.icon}</span>
@@ -108,12 +120,14 @@ export default function SortSelector({ defaultSort = "date-desc" }: { defaultSor
           <path d={isOpen ? "M6 9l6 6 6-6" : "M9 6l6 6 6-6"} />
         </svg>
       </button>
-      <ul class="sort-dropdown">
+      <ul class="sort-dropdown" id="sort-dropdown">
         {sortOptions.map((option, idx) => (
           <li key={option.value}>
             <button
               ref={el => { optionRefs.current[idx] = el; }}
+              type="button"
               class={`sort-option ${option.value === currentSort ? 'active' : ''}`}
+              aria-current={option.value === currentSort ? "true" : undefined}
               onClick={() => handleSortChange(option.value)}
             >
               <span class="sort-icon">{option.icon}</span>

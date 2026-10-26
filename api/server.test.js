@@ -395,3 +395,36 @@ test("thread race and webhook names", async () => {
   assert.equal(exec.body.avatar_url, "https://cdn/x.png");
   assert.match(app.db.prepare("SELECT discord_msg_id FROM comments WHERE id = ?").get(c.id).discord_msg_id, /^\d+$/);
 });
+
+test("unliking a Discord like removes the reaction there", async () => {
+  const P4 = snow(T + 10_800_000);
+  const heart = encodeURIComponent("❤️");
+  app.db.prepare("INSERT OR REPLACE INTO image_posts (image_id, channel_id, message_id) VALUES (?, ?, ?)").run(IMG2, GALLERY, P4);
+  discord.set(`/channels/${GALLERY}/messages/${P4}`, { id: P4, reactions: [{ emoji: { name: "❤️" } }, { emoji: { name: "🔥" } }] });
+  discord.set(`/channels/${GALLERY}/messages/${P4}/reactions/${heart}?limit=100`, [{ id: "4711" }]);
+  await app.syncPost(GALLERY, P4);
+  const cookie = session("dave-unlike", "4711", "dave");
+  const like = () => req(`/api/images/${IMG2}/like`, { method: "POST", cookie });
+  const source = () => app.db.prepare("SELECT source FROM likes WHERE image_id = ? AND user_id = '4711'").get(IMG2)?.source;
+  assert.equal(source(), "discord");
+
+  // Discord refuses: the like stays and the site says so instead of pretending.
+  onWrite = () => json({ code: 50013 }, 403);
+  let res = await like();
+  assert.equal(res.status, 409);
+  assert.equal((await res.json()).liked, true);
+  assert.equal(source(), "discord");
+
+  // Discord agrees: only the like emoji goes, for this user, and the like with it.
+  onWrite = () => new Response(null, { status: 204 });
+  writes.length = 0;
+  res = await like();
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).liked, false);
+  assert.deepEqual(writes.map((w) => `${w.method} ${w.path}`), [`DELETE /channels/${GALLERY}/messages/${P4}/reactions/${heart}/4711`]);
+  assert.equal(source(), undefined);
+
+  // The next like is an ordinary site like again.
+  assert.equal((await (await like()).json()).liked, true);
+  assert.equal(source(), "site");
+});

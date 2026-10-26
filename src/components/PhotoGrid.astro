@@ -163,4 +163,5 @@ const schema = {
 	ariaLabelPrefix="Open fullscreen of"
 />
 
-<script type="application/ld+json" set:html={JSON.stringify(schema)} is:inline />
+{/* Captions come from Discord; "<" escaped keeps a "</script>" in one inside the script. */}
+<script type="application/ld+json" set:html={JSON.stringify(schema).replaceAll("<", "\\u003c")} is:inline />

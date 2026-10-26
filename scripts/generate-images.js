@@ -22,6 +22,19 @@ fs.readdirSync(mdDir)
     console.log(`🗑️ Deleted: ${f} from content/photos`);
   });
 
+// n8n writes double-quoted YAML strings ("line\n\nI said \"hi\""); their escapes
+// are JSON's, so JSON.parse resolves them. Anything else just loses its quotes.
+function unquote(raw) {
+  if (/^".*"$/.test(raw)) {
+    try {
+      return JSON.parse(raw);
+    } catch {}
+  }
+  return raw.replace(/^["']|["']$/g, '');
+}
+
+const xml = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]);
+
 // Helper: Extract frontmatter from markdown file
 function extractFrontmatter(fullPath) {
   if (!fs.existsSync(fullPath)) return {};
@@ -34,8 +47,7 @@ function extractFrontmatter(fullPath) {
   for (const line of lines) {
     const [key, ...valueParts] = line.split(':');
     if (key && valueParts.length) {
-      const value = valueParts.join(':').trim().replace(/^["']|["']$/g, '');
-      frontmatter[key.trim()] = value;
+      frontmatter[key.trim()] = unquote(valueParts.join(':').trim());
     }
   }
   return frontmatter;
@@ -108,7 +120,7 @@ images.forEach(img => {
   sitemap += `    <loc>${baseUrl}/#img-${img.id}</loc>\n`;
   sitemap += `    <image:image>\n`;
   sitemap += `      <image:loc>${baseUrl}${img.imageUrl}</image:loc>\n`;
-  if (img.caption) sitemap += `      <image:title>${img.caption}</image:title>\n`;
+  if (img.caption) sitemap += `      <image:title>${xml(img.caption)}</image:title>\n`;
   sitemap += `    </image:image>\n`;
   sitemap += `  </url>\n`;
 });

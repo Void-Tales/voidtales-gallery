@@ -1,24 +1,13 @@
-import { siteConfig } from '../src/config/site.js';
-
 /**
- * Loads the latest images.json and returns images in original order.
- * Does not manipulate the DOM directly.
+ * Loads the latest images.json, in file order (sorting happens in the grid).
+ * Throws on any failure, so callers never mistake an error for an empty gallery.
  */
 async function loadImages() {
-  console.debug('[LoadImages] Loading images.json...');
-  try {
-    const response = await fetch('/images.json?t=' + Date.now(), { cache: 'no-store' });
-    if (!response.ok) {
-      console.error('[LoadImages] Error loading images.json:', response.statusText);
-      return [];
-    }
-    const images = await response.json();
-    // Do NOT sort here!
-    return images;
-  } catch (err) {
-    console.error('[LoadImages] Error:', err);
-    return [];
-  }
+  const response = await fetch(`/images.json?t=${Date.now()}`, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`images.json: HTTP ${response.status}`);
+  const images = await response.json();
+  if (!Array.isArray(images)) throw new Error('images.json: not a list');
+  return images;
 }
 
 export default loadImages;

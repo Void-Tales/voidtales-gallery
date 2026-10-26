@@ -43,8 +43,13 @@ function columnsForWidth() {
   return 1;
 }
 
+// GLightbox puts title and description in with innerHTML, and caption, body and
+// author come from Discord: escape them, then turn line breaks into <br>.
+const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+const lightboxHtml = (text: string) => text.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]).replace(/\r?\n/g, "<br>");
+
 function slideTitle(photo: Photo) {
-  return photo.caption?.trim() || photo.body?.trim() || photo.title?.trim() || "";
+  return lightboxHtml(photo.caption?.trim() || photo.body?.trim() || photo.title?.trim() || "");
 }
 
 // Beim ersten Aufruf der Komponente steht der statische Grid noch, und seine
@@ -204,7 +209,7 @@ export default function PhotoGridClient({
       shareBtn.className = "glightbox-btn glightbox-share-btn";
       shareBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`;
       shareBtn.title = "Share";
-      shareBtn.onclick = (event) => {
+      shareBtn.onclick = async (event) => {
         event.stopPropagation();
         event.preventDefault();
 
@@ -221,8 +226,9 @@ export default function PhotoGridClient({
         const pageUrl =
           window.location.origin + window.location.pathname + (photoId ? `#img-${photoId}` : "");
 
+        // Awaited: writeText rejects (no permission, no focus) instead of throwing.
         try {
-          navigator.clipboard.writeText(pageUrl);
+          await navigator.clipboard.writeText(pageUrl);
           showNotification("Link copied! Share this to open the image in lightbox.", "success");
         } catch {
           showNotification(`Failed to copy link. Please copy manually: ${pageUrl}`, "error");
@@ -256,16 +262,14 @@ export default function PhotoGridClient({
     }
   }
 
-  // Load images on mount & refresh
-  async function loadAndSetPhotos() {
-    setLoading(true);
-    setFlashing(true);
-    setOriginalPhotos([]);
-    setTimeout(() => setFlashing(false), 200);
+  // Load images on mount & refresh. The refresh button already fetched the list and
+  // hands it over, so a click is one request. The grid stays until the new list is
+  // there: a failed refresh keeps the photos (the button shows the error).
+  // biome-ignore lint/suspicious/noExplicitAny: raw images.json entries
+  async function loadAndSetPhotos(preloaded?: any[]) {
     try {
       // @ts-ignore
-      const { default: loadImages } = await import("../../scripts/load-images.js");
-      const loaded = await loadImages();
+      const loaded = preloaded ?? (await (await import("../../scripts/load-images.js")).default());
       // biome-ignore lint/suspicious/noExplicitAny: raw images.json entries
       const mapped: Photo[] = loaded.map((img: any) => ({
         id: img.id,
@@ -281,9 +285,13 @@ export default function PhotoGridClient({
         body: img.body || "",
         date: img.date,
       }));
+      setFlashing(true);
+      setTimeout(() => setFlashing(false), 200);
       resetEntranceState();
       setRetries({});
       setOriginalPhotos(mapped);
+      // New key = fresh grid, so the cards run their entrance again.
+      setGridKey((k) => k + 1);
     } catch (err) {
       console.error("[PhotoGridClient] Error loading photos:", err);
     }
@@ -339,7 +347,7 @@ export default function PhotoGridClient({
   }, []);
 
   useEffect(() => {
-    const handleRefresh = () => loadAndSetPhotos();
+    const handleRefresh = (e: Event) => loadAndSetPhotos((e as CustomEvent).detail?.images);
     window.addEventListener("refreshGallery", handleRefresh);
     return () => window.removeEventListener("refreshGallery", handleRefresh);
   }, []);
@@ -371,7 +379,7 @@ export default function PhotoGridClient({
         href: photo.imageUrl,
         type: "image",
         title: slideTitle(photo),
-        description: `Author: ${photo.author}`,
+        description: `Author: ${lightboxHtml(photo.author ?? "")}`,
         // "right" keeps GLightbox from shrinking the photo by the height of the
         // description; lightbox.css lays it out as side panel or bottom bar.
         // Per element, because GLightbox lets its slide defaults override the

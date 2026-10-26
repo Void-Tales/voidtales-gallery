@@ -1,30 +1,30 @@
 import { useEffect, useState } from 'preact/hooks';
 
 /*
- * ThemeToggle component for switching between dark and light mode.
- * Stores preference in localStorage and updates the document's theme class and attribute.
+ * ThemeToggle: ThemeInit.astro has already set the theme on <html> before paint;
+ * this only reads it and flips it. The choice goes into the cookie on
+ * .voidtales.win (shared with the portal) and into localStorage (local dev,
+ * where the browser drops a cookie for another domain).
  */
 export default function ThemeToggle() {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(true);
 
-  // Initialize theme on mount
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const saved = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const isDark = saved === 'dark' || (!saved && prefersDark);
-    setDark(isDark);
-    document.documentElement.classList.toggle('dark', isDark);
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    setDark(document.documentElement.classList.contains('dark'));
   }, []);
 
-  // Toggle theme and persist preference
   const toggleTheme = () => {
     const newDark = !dark;
+    const value = newDark ? 'dark' : 'light';
     setDark(newDark);
     document.documentElement.classList.toggle('dark', newDark);
-    document.documentElement.setAttribute('data-theme', newDark ? 'dark' : 'light');
-    localStorage.setItem('theme', newDark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', value);
+    document.cookie = `theme=${value}; Domain=.voidtales.win; Path=/; Max-Age=31536000; SameSite=Lax; Secure`;
+    try {
+      localStorage.setItem('theme', value);
+    } catch {
+      // Storage disabled: the cookie still carries the choice.
+    }
   };
 
   const label = dark ? 'Switch to light mode' : 'Switch to dark mode';

@@ -15,6 +15,7 @@ import '../styles/gallery.css';
 import '../styles/lightbox.css';
 
 import Header from '../components/Header.astro';
+import ThemeInit from '../components/ThemeInit.astro';
 import PhotoGrid from '../components/PhotoGrid.astro';
 import Footer from '../components/Footer.astro';
 
@@ -58,18 +59,7 @@ const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
       // Halloween: 24.10. to 1.11. by the visitor's clock, gone by itself after (rules: styles/halloween.css)
       (function (d) { var m = d.getMonth(), t = d.getDate(); if ((m === 9 && t >= 24) || (m === 10 && t <= 1)) document.documentElement.classList.add('halloween'); })(new Date());
     </script>
-    <!-- Set theme on initial load -->
-    <script>
-      // Set theme based only on localStorage, default is dark
-      (function() {
-        try {
-          var saved = localStorage.getItem('theme');
-          var isDark = saved === 'dark' || !saved;
-          document.documentElement.classList.toggle('dark', isDark);
-          document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-        } catch(e) {}
-      })();
-    </script>
+    <ThemeInit />
     <!-- Analytics: self-hosted Umami, cookieless, nothing stored on the device.
          Same website id as the portal - Umami keeps the hostname per event, so
          gallery.voidtales.win stays separable. Covered by the portal's
