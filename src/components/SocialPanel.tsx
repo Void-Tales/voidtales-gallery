@@ -193,7 +193,7 @@ export default function SocialPanel({ imageId }: { imageId: string }) {
             />
             <div class="comment-form-row">
               <span class="comment-counter">
-                {draft.length}/{MAX_LENGTH}
+                {draft.length}/{MAX_LENGTH} · also posted in the Discord thread
               </span>
               <button type="submit" class="comment-submit" disabled={busy || !draft.trim()}>
                 Post
