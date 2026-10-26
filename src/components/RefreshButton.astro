@@ -24,15 +24,16 @@ const { ariaLabel = "Refresh page", title = "Refresh (force reload)" } = Astro.p
     if (refreshBtn && refreshIcon) {
       refreshBtn.onclick = async function(e) {
         e.preventDefault();
+        if (refreshBtn.classList.contains('loading')) return;
         // Show loading state
         refreshBtn.classList.add('loading');
         refreshIcon.classList.add('spin');
         try {
           // Dynamically import and execute the gallery refresh script
           const { default: loadImages } = await import('../../scripts/load-images.js');
-          await loadImages(); // Load images, but do not manipulate DOM
-          // Dispatch event to trigger state update in PhotoGridClient
-          window.dispatchEvent(new CustomEvent('refreshGallery'));
+          // The grid takes the list from the event instead of fetching it again.
+          const images = await loadImages();
+          window.dispatchEvent(new CustomEvent('refreshGallery', { detail: { images } }));
           // Show success feedback
           refreshBtn.classList.remove('loading');
           refreshBtn.classList.add('success');
