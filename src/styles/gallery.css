@@ -147,8 +147,15 @@
   opacity: 1;
 }
 
-.photo:hover img {
-  transform: scale(1.04);
+/* Hover only where there is a pointer that hovers: on touch, :hover sticks after a tap. */
+@media (hover: hover) {
+  .photo:hover img {
+    transform: scale(1.04);
+  }
+
+  .photo:hover .photo-caption {
+    opacity: 1;
+  }
 }
 
 .photo-unavailable {
@@ -181,7 +188,6 @@
   transition: opacity var(--dur-fast) var(--ease);
 }
 
-.photo:hover .photo-caption,
 .photo:focus-visible .photo-caption {
   opacity: 1;
 }

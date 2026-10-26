@@ -299,13 +299,20 @@ html.dark .theme-icon-sun {
   opacity: 0;
   pointer-events: none;
   transform: translateY(-6px);
-  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+
+  /* Hidden, not only transparent: otherwise Tab walks through the closed menu.
+     visibility flips after the fade-out and before the fade-in. */
+  visibility: hidden;
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease),
+    visibility 0s linear var(--dur-fast);
 }
 
 .sort-selector.open .sort-dropdown {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
+  visibility: visible;
+  transition-delay: 0s;
 }
 
 .sort-option {
@@ -325,7 +332,12 @@ html.dark .theme-icon-sun {
 .sort-option:hover,
 .sort-option:focus-visible {
   background: var(--accent-soft);
-  outline: none;
+}
+
+/* Inside the menu's overflow: hidden, the global outline offset would be cut off. */
+.sort-option:focus-visible {
+  border-radius: 0;
+  outline-offset: -2px;
 }
 
 .sort-option.active {
