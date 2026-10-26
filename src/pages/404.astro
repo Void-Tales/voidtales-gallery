@@ -9,6 +9,7 @@ import '../styles/components.css';
 import '../styles/hero.css';
 
 import Header from '../components/Header.astro';
+import ThemeInit from '../components/ThemeInit.astro';
 import Footer from '../components/Footer.astro';
 ---
 
@@ -24,18 +25,7 @@ import Footer from '../components/Footer.astro';
     <Font cssVariable="--font-instrument-sans" preload={[{ style: 'normal' }]} />
     <title>Not Found - {siteConfig.name}</title>
     <meta name="theme-color" content="#0a0714" />
-    <!-- Set theme on initial load -->
-    <script>
-      // Set theme based only on localStorage, default is dark
-      (function() {
-        try {
-          var saved = localStorage.getItem('theme');
-          var isDark = saved === 'dark' || !saved;
-          document.documentElement.classList.toggle('dark', isDark);
-          document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-        } catch(e) {}
-      })();
-    </script>
+    <ThemeInit />
   </head>
   <body>
     <Header />

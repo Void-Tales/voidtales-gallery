@@ -1,0 +1,22 @@
+{/*
+  Runs before first paint (is:inline), so the theme never flashes. Same rule as the
+  portal, which shares the choice through the cookie: cookie `theme` on .voidtales.win,
+  else localStorage (choices from before the cookie, copied into it), else dark.
+  ThemeToggle reads the result from <html> and writes both.
+*/}
+<script is:inline>
+  (function () {
+    var m = document.cookie.match(/(?:^|; )theme=(dark|light)/);
+    var saved = m && m[1];
+    if (!saved) {
+      try {
+        saved = localStorage.getItem('theme');
+      } catch (e) {}
+      if (saved === 'dark' || saved === 'light')
+        document.cookie = 'theme=' + saved + '; Domain=.voidtales.win; Path=/; Max-Age=31536000; SameSite=Lax; Secure';
+    }
+    var isDark = saved !== 'light';
+    document.documentElement.classList.toggle('dark', isDark);
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  })();
+</script>
