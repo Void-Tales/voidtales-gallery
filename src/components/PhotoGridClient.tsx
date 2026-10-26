@@ -43,8 +43,13 @@ function columnsForWidth() {
   return 1;
 }
 
+// GLightbox puts title and description in with innerHTML, and caption, body and
+// author come from Discord: escape them, then turn line breaks into <br>.
+const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+const lightboxHtml = (text: string) => text.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]).replace(/\r?\n/g, "<br>");
+
 function slideTitle(photo: Photo) {
-  return photo.caption?.trim() || photo.body?.trim() || photo.title?.trim() || "";
+  return lightboxHtml(photo.caption?.trim() || photo.body?.trim() || photo.title?.trim() || "");
 }
 
 // Beim ersten Aufruf der Komponente steht der statische Grid noch, und seine
@@ -371,7 +376,7 @@ export default function PhotoGridClient({
         href: photo.imageUrl,
         type: "image",
         title: slideTitle(photo),
-        description: `Author: ${photo.author}`,
+        description: `Author: ${lightboxHtml(photo.author ?? "")}`,
         // "right" keeps GLightbox from shrinking the photo by the height of the
         // description; lightbox.css lays it out as side panel or bottom bar.
         // Per element, because GLightbox lets its slide defaults override the
