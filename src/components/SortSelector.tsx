@@ -13,6 +13,7 @@ declare global {
 const sortOptions = [
   { value: 'date-desc', label: 'Newest', icon: '↓' },
   { value: 'date-asc', label: 'Oldest', icon: '↑' },
+  { value: 'popular', label: 'Popular', icon: '♥' },
   { value: 'name-asc', label: 'A - Z', icon: 'A' },
   { value: 'name-desc', label: 'Z - A', icon: 'Z' },
   { value: 'random', label: 'Random', icon: '🎲' },

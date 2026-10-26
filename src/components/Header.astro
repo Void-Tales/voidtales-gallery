@@ -1,5 +1,6 @@
 ---
 import ThemeToggle from '../components/ThemeToggle.jsx';
+import AccountButton from '../components/AccountButton';
 import RefreshButton from '../components/RefreshButton.astro';
 import SortSelector from '../components/SortSelector';
 import { siteConfig } from '../config/site.js';
@@ -34,6 +35,7 @@ import { navigationLinks } from '../config/navigation.js';
         </svg>
       </button>
       <ThemeToggle client:load />
+      <AccountButton client:load />
     </div>
   </div>
 </header>

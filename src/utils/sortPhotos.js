@@ -2,10 +2,15 @@
  * Sorts an array of photo objects by the given option.
  * @param {Array} photos - Array of photo objects
  * @param {string} option - Sort option (e.g., 'date-desc', 'name-asc')
+ * @param {Object} [stats] - Like counts by photo id, only used by 'popular'
  * @returns {Array} Sorted array
  */
-export function sortPhotos(photos, option) {
+export function sortPhotos(photos, option, stats = {}) {
+  const likes = (photo) => stats[photo.id]?.likes ?? 0;
   switch (option) {
+    case 'popular':
+      // Ties (and every photo while the API is down) fall back to newest first.
+      return [...photos].sort((a, b) => likes(b) - likes(a) || new Date(b.date || 0) - new Date(a.date || 0));
     case 'date-desc':
       return [...photos].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
     case 'date-asc':

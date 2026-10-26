@@ -1,8 +1,11 @@
 import GLightbox from "glightbox";
 import "glightbox/dist/css/glightbox.css";
+import { render } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { distributeColumns } from "../utils/distributeColumns.js";
+import { getStats, loadSocial, type Stat, useSocial } from "../utils/social.js";
 import { sortPhotos } from "../utils/sortPhotos.js";
+import SocialPanel, { CommentIcon, HeartIcon } from "./SocialPanel.js";
 
 declare global {
   interface Window {
@@ -114,13 +117,20 @@ export default function PhotoGridClient({
   const [retries, setRetries] = useState<Record<string, number>>({});
   // Lazy initializer: laeuft im ersten Render, also solange der statische Grid steht.
   const [resumeDelay] = useState(runningCardInDelay);
+  const social = useSocial();
+  // Like counts as of the last sort pick: "Popular" must not reshuffle the grid
+  // (and rebuild the open lightbox) every time someone clicks the heart.
+  const [rankStats, setRankStats] = useState<Record<string, Stat>>({});
+  const [socialReady, setSocialReady] = useState(false);
 
   // Derived, not state: if `sortOption` and the sorted list could disagree for even
   // one render, the entrance delays would freeze against the pre-sort order.
   // `shuffleNonce` is a dependency only so re-picking "random" re-shuffles.
+  // `rank` stays null outside "popular", so like counts arriving never re-sort other orders.
+  const rank = sortOption === "popular" ? rankStats : null;
   const loadedPhotos = useMemo(
-    () => sortPhotos(originalPhotos, sortOption),
-    [originalPhotos, sortOption, shuffleNonce],
+    () => sortPhotos(originalPhotos, sortOption, rank ?? undefined),
+    [originalPhotos, sortOption, shuffleNonce, rank],
   );
 
   // Entrance state lives in refs on purpose: a re-render must never restart or
@@ -286,6 +296,14 @@ export default function PhotoGridClient({
     if (initialPhotos.length === 0) loadAndSetPhotos();
   }, []);
 
+  // Likes and comments come from gallery-api; if it is down this resolves anyway.
+  useEffect(() => {
+    loadSocial().then(() => {
+      setRankStats(getStats());
+      setSocialReady(true);
+    });
+  }, []);
+
   // PhotoGrid.astro rendert denselben Grid statisch vor - sonst enthaelt das HTML
   // wegen client:only kein einziges <img> und Crawler sehen eine leere Seite. Ab
   // hier uebernimmt diese Komponente. Layout-Effekt, damit Entfernen und erster
@@ -310,6 +328,7 @@ export default function PhotoGridClient({
   useEffect(() => {
     const handleSort = (e: CustomEvent) => {
       resetEntranceState();
+      setRankStats(getStats());
       setSortOption(e.detail.sortOption);
       setGridKey((prev) => prev + 1);
       // Re-picking "random" has to produce a new shuffle.
@@ -356,6 +375,8 @@ export default function PhotoGridClient({
       })) as unknown as [],
       touchNavigation: true,
       zoomable: false,
+      // No "See more" truncation: it rewrites .gslide-desc and would wipe the social panel.
+      moreLength: 0,
       openEffect: "fade",
       closeEffect: "fade",
       slideEffect: "slide",
@@ -369,7 +390,21 @@ export default function PhotoGridClient({
     });
     lightbox.on("close", () => {
       document.querySelectorAll(".custom-glightbox-btns").forEach((el) => el.remove());
+      document.querySelectorAll(".gslide-social").forEach((el) => render(null, el));
     });
+    // Inside .gslide-desc on purpose: GLightbox leaves touches there alone (no
+    // swipe while typing) and clicks inside .ginner-container don't close it.
+    // GLightbox types every handler as () => void, but slide_after_load passes the slide.
+    const onSlideLoad = ({ slideIndex, slideNode }: { slideIndex: number; slideNode?: Element }) => {
+      const photo = visiblePhotos[slideIndex];
+      const desc = slideNode?.querySelector(".gslide-desc");
+      if (!photo || !desc || desc.querySelector(".gslide-social")) return;
+      const mount = document.createElement("div");
+      mount.className = "gslide-social";
+      desc.appendChild(mount);
+      render(<SocialPanel imageId={photo.id} />, mount);
+    };
+    lightbox.on("slide_after_load", onSlideLoad as () => void);
 
     window._glightboxInstance = lightbox;
     setTimeout(() => setLightboxReady(true), 100); // Mark GLightbox as ready after init
@@ -377,7 +412,8 @@ export default function PhotoGridClient({
 
   // Hash-Open: Open only once and only if GLightbox is ready and not already open
   useEffect(() => {
-    if (!pendingHashId || !lightboxReady) return;
+    // Waits for the like counts too: a "popular" re-sort after opening would rebuild the lightbox.
+    if (!pendingHashId || !lightboxReady || !socialReady) return;
     const index = loadedPhotos.findIndex((photo) => photo.id === pendingHashId);
     if (
       index >= 0 &&
@@ -394,7 +430,7 @@ export default function PhotoGridClient({
         }, 200);
       }
     }
-  }, [pendingHashId, loadedPhotos, lightboxReady]);
+  }, [pendingHashId, loadedPhotos, lightboxReady, socialReady]);
 
   function isStaffPhoto(photo: Photo) {
     return (
@@ -410,6 +446,7 @@ export default function PhotoGridClient({
     const bust = attempt > 0 ? `?r=${attempt}` : "";
     const src = `${photo.thumbBase}-400.webp${bust}`;
     const staff = isStaffPhoto(photo);
+    const stat = social.stats[photo.id];
     const classes = [
       "photo",
       staff && "staff-photo",
@@ -471,6 +508,22 @@ export default function PhotoGridClient({
           <span class="photo-caption-title">{photo.title}</span>
           {photo.author && <span class="photo-caption-author">{photo.author}</span>}
         </span>
+        {stat && (stat.likes > 0 || stat.comments > 0) && (
+          <span class="photo-social" aria-label={`${stat.likes} likes, ${stat.comments} comments`}>
+            {stat.likes > 0 && (
+              <span class={social.liked.has(photo.id) ? "liked" : undefined}>
+                <HeartIcon />
+                {stat.likes}
+              </span>
+            )}
+            {stat.comments > 0 && (
+              <span>
+                <CommentIcon />
+                {stat.comments}
+              </span>
+            )}
+          </span>
+        )}
         {staff && (
           <span class="staff-badge" title="Staff member">
             <svg viewBox="0 0 24 24" aria-hidden="true">

@@ -184,3 +184,203 @@ body.gscrollbar-fixer {
     object-fit: contain !important;
   }
 }
+
+/* ---------- Likes / comments (SocialPanel, mounted into .gslide-desc) ---------- */
+
+.gslide-social {
+  width: min(36rem, 90vw);
+  margin: var(--space-3) auto 0;
+  color: #fff;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.social-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+}
+
+.like-btn,
+.social-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.like-btn {
+  min-height: 2.25rem;
+  padding: 0 var(--space-4);
+  border: 1px solid rgb(255 255 255 / 25%);
+  border-radius: var(--radius-full);
+  background: rgb(0 0 0 / 45%);
+  color: #fff;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+
+.like-btn:hover {
+  border-color: var(--like);
+}
+
+.like-btn svg,
+.social-count svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.like-btn.liked {
+  border-color: var(--like);
+}
+
+.like-btn.liked svg {
+  fill: var(--like);
+  stroke: var(--like);
+}
+
+.social-count {
+  color: rgb(255 255 255 / 70%);
+}
+
+/* Long threads scroll inside the panel instead of pushing the photo away. */
+.comment-list {
+  display: flex;
+  max-height: 28vh;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  overflow-y: auto;
+  border-radius: var(--radius-md);
+  background: rgb(0 0 0 / 45%);
+  list-style: none;
+  overscroll-behavior: contain;
+}
+
+.comment {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.comment-avatar {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: rgb(255 255 255 / 15%);
+}
+
+.comment-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.comment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: rgb(255 255 255 / 60%);
+  font-size: 0.72rem;
+}
+
+.comment-name {
+  color: #fff;
+  font-weight: 600;
+}
+
+.comment-discord {
+  width: 0.85rem;
+  height: 0.85rem;
+  fill: #8c9eff;
+}
+
+.comment-delete {
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: rgb(255 255 255 / 60%);
+  cursor: pointer;
+  font-size: 0.72rem;
+  text-decoration: underline;
+}
+
+.comment-delete:hover {
+  color: var(--like);
+}
+
+.comment-body {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.comment-form {
+  margin-top: var(--space-3);
+}
+
+.comment-form textarea {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid rgb(255 255 255 / 25%);
+  border-radius: var(--radius-md);
+  background: rgb(0 0 0 / 45%);
+  color: #fff;
+  font: inherit;
+  resize: vertical;
+}
+
+.comment-form textarea:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.comment-form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+}
+
+.comment-counter {
+  color: rgb(255 255 255 / 50%);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.comment-submit {
+  min-height: 2rem;
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.comment-submit:disabled,
+.like-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.social-login {
+  display: block;
+  margin-top: var(--space-3);
+  color: var(--accent);
+  text-align: center;
+}
+
+.social-error {
+  margin: var(--space-2) 0 0;
+  color: var(--like);
+  text-align: center;
+}

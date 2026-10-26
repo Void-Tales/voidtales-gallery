@@ -8,7 +8,7 @@
 ![pnpm](https://img.shields.io/badge/pnpm-F69220?logo=pnpm&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-a78bfa)
 
-A sleek, high-performance photo gallery for the VoidTales Minecraft community - built with [Astro 7](https://astro.build/), Preact, and vanilla CSS. No backend, no database, no heavy frameworks. Live at [gallery.voidtales.win](https://gallery.voidtales.win).
+A sleek, high-performance photo gallery for the VoidTales Minecraft community - built with [Astro 7](https://astro.build/), Preact, and vanilla CSS, plus a small dependency-free API for likes and comments. No heavy frameworks. Live at [gallery.voidtales.win](https://gallery.voidtales.win).
 
 > **Note for self-hosters:** This is a static site generator - there is no upload UI or admin panel. Images and metadata are plain files. See the [Self-Hosting Guide](./docs/self-hosting.md) for setup, the metadata format, and automation ideas.
 
@@ -16,10 +16,11 @@ A sleek, high-performance photo gallery for the VoidTales Minecraft community - 
 
 - **Static & fast** - Astro-generated single page, lazy-loaded WebP thumbnails (Sharp, 3 sizes)
 - **Live gallery without rebuilds** - the grid fetches `images.json` at runtime, so new images appear without regenerating the HTML
-- **Masonry grid** with infinite scroll, animated batch transitions, and a sort selector (newest, oldest, name, random)
+- **Masonry grid** with infinite scroll, animated batch transitions, and a sort selector (newest, oldest, popular, name, random)
 - **GLightbox lightbox** with share links (unique image IDs) and view-original buttons
 - **Flicker-free dark mode** - CSS variables + localStorage, dark-first design
 - **Staff badges** for configured community members
+- **Likes and comments** with Discord login (guild members only), mirrored from reactions and threads on the original Discord post, plus a "Popular" sort. Optional: without the API the gallery works as before. See [`api/README.md`](./api/README.md)
 - **Config-driven** - texts, nav, hero, and sorting live in `src/config/`, not in components
 - **Self-hosted fonts** via the Astro Fonts API - no external font requests
 - **Optional external content downloads** at build time (fileserver/CI integration)
@@ -47,6 +48,7 @@ To use your own images: originals go in `public/images/original/`, metadata as M
 | `pnpm run gen:thumbs` | Generate WebP thumbnails (200/400/800px) |
 | `pnpm run gen:imagejson` | Regenerate `images.json` + sitemap |
 | `pnpm run gen:testdata` / `cleanup:testdata` | Create/remove local test data |
+| `node --test api/server.test.js` | Tests for the likes/comments API |
 
 ## 📁 Project Structure
 
@@ -59,6 +61,7 @@ src/components/           Header, PhotoGrid(Client), SortSelector, ThemeToggle, 
 src/config/               site.js, navigation.js, externaldownload.cjs
 src/styles/               variables, base, layout, components, hero, gallery, lightbox
 scripts/                  Image pipeline (thumbs, images.json, downloads, test data)
+api/                      gallery-api: likes, comments, Discord login (own image)
 ```
 
 ## 🤝 Contributing

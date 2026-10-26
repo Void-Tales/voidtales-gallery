@@ -394,3 +394,112 @@ html.dark .theme-icon-sun {
     justify-content: center;
   }
 }
+
+/* ---------- Account (Discord login) ---------- */
+
+.account {
+  position: relative;
+}
+
+.account-login {
+  display: flex;
+  align-items: center;
+  height: 2.25rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  color: var(--text);
+  font-size: 0.85rem;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.account-login:hover {
+  border-color: var(--accent);
+}
+
+.account-btn {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-raised);
+  cursor: pointer;
+}
+
+.account-btn img {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+}
+
+.account-menu {
+  position: absolute;
+  z-index: var(--z-menu);
+  top: calc(100% + var(--space-2));
+  right: 0;
+  display: none;
+  min-width: 11rem;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-2);
+}
+
+.account.open .account-menu {
+  display: flex;
+}
+
+.account-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-staff {
+  align-self: flex-start;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+}
+
+.account-logout {
+  padding: var(--space-1) 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.account-logout:hover {
+  color: var(--text);
+}
+
+/* Appended to <body> by AccountButton, above GLightbox (z-index 999999). */
+.account-notice {
+  position: fixed;
+  z-index: 1000000;
+  top: var(--space-4);
+  left: 50%;
+  width: max-content;
+  max-width: min(20rem, 80vw);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-2);
+  font-size: 0.85rem;
+  transform: translateX(-50%);
+}
