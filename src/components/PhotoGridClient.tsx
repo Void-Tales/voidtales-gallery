@@ -209,7 +209,7 @@ export default function PhotoGridClient({
       shareBtn.className = "glightbox-btn glightbox-share-btn";
       shareBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`;
       shareBtn.title = "Share";
-      shareBtn.onclick = (event) => {
+      shareBtn.onclick = async (event) => {
         event.stopPropagation();
         event.preventDefault();
 
@@ -226,8 +226,9 @@ export default function PhotoGridClient({
         const pageUrl =
           window.location.origin + window.location.pathname + (photoId ? `#img-${photoId}` : "");
 
+        // Awaited: writeText rejects (no permission, no focus) instead of throwing.
         try {
-          navigator.clipboard.writeText(pageUrl);
+          await navigator.clipboard.writeText(pageUrl);
           showNotification("Link copied! Share this to open the image in lightbox.", "success");
         } catch {
           showNotification(`Failed to copy link. Please copy manually: ${pageUrl}`, "error");
