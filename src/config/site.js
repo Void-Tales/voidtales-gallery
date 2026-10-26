@@ -23,6 +23,10 @@
  * @property {string} footer.copyright - Copyright text displayed in the footer.
  * @property {string} defaultSort - Default Sorting Order.
  */
+// The portal: header brand, hero button and every nav link point here
+// (navigation.js reads it from network.url).
+const PORTAL = 'https://portal.voidtales.win';
+
 export const siteConfig = {
   // Site name: Displayed in the browser title and meta tags
   name: 'Void Tales Gallery',
@@ -50,12 +54,22 @@ export const siteConfig = {
     titleAccent: 'Gallery',  // Part of the title that gets the accent glow
     subtitle: 'The latest images from the world of VoidTales - sorted by date.',  // Subtitle text
     cta: 'To the Portal',  // Call-to-action button text
-    ctaLink: 'https://portal.voidtales.win', // 🌐 External link for the button
+    ctaLink: PORTAL,
   },
   
   // Footer configuration: Defines content for the site footer
   footer: {
-    copyright: 'VoidTales',  // Copyright text displayed in the footer
+    // Same line as the portal footer.
+    copyright: 'Void Tales · Created by Hyphonical & Inventory 💙 · Not affiliated with Mojang or Microsoft.',
+  },
+
+  // The network this gallery belongs to: header brand and footer, as on the portal.
+  network: {
+    name: 'Void Tales',
+    url: PORTAL,
+    // Copy of the portal's hero.subtitle, keep both in step.
+    tagline: 'Mend a broken world, and uncover the truth within yourself.',
+    server: 'play.voidtales.win',
   },
 
   // Default sort order for images: 'date-asc' or 'date-desc'

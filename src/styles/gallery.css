@@ -1,5 +1,48 @@
 /* =================== GALLERY =================== */
 
+/* ---------- Toolbar above the grid ---------- */
+
+/* Title and count left, sort + refresh right, closed by a hairline: the
+   controls sit where they act, and the header stays the portal's. */
+.gallery-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-2);
+}
+
+.gallery-toolbar-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.gallery-toolbar-title h2 {
+  font-size: 1.35rem;
+}
+
+.gallery-count {
+  color: var(--muted);
+  font-family: ui-monospace, sfmono-regular, menlo, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.gallery-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.gallery-toolbar .sort-btn {
+  min-width: 8.5rem;
+}
+
 .masonry {
   display: flex;
   z-index: var(--z-grid);

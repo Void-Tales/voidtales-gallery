@@ -8,6 +8,7 @@ import '../styles/layout.css';
 import '../styles/components.css';
 import '../styles/hero.css';
 
+import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 ---
 
@@ -37,10 +38,9 @@ import Footer from '../components/Footer.astro';
     </script>
   </head>
   <body>
-    {/* No Header here: it carries Refresh/Sort controls that only make sense
-        next to the photo grid. */}
+    <Header />
     <section class="hero">
-      <div class="hero-content">
+      <div class="hero-content container">
         <span class="hero-eyebrow">404</span>
         <h1 class="hero-title">Nothing to <span class="accent">see</span> here</h1>
         <p class="hero-subtitle">This frame came back empty. The gallery is still that way.</p>

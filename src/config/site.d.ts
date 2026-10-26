@@ -17,6 +17,12 @@ export const siteConfig: {
   footer: {
     copyright: string;
   };
+  network: {
+    name: string;
+    url: string;
+    tagline: string;
+    server: string;
+  };
   defaultSort: string;
   staffAuthors?: string[];
 };

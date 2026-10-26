@@ -41,9 +41,19 @@
   --space-5: 1.5rem;
   --space-6: 2.5rem;
 
-  /* Layout */
+  /* Layout (gutter on wide screens = the portal's .shell) */
   --container: 72rem;
+  --gutter-wide: 2rem;
   --header-h: 4.5rem;
+
+  /* Brand mark: brand violet in every theme, Halloween included, it is the
+     mark, not an accent. Same values as the portal. */
+  --mark-top: #1d1631;
+  --mark-bottom: #0c0818;
+  --mark-ink: #c4b5fd;
+  --mark-rim: rgb(167 139 250 / 30%);
+  --mark-rim-strong: rgb(167 139 250 / 70%);
+  --mark-radius: 0.5rem;
 
   /* Lightbox (always dark, independent of the theme) */
   --lightbox-panel: #120d1e;
