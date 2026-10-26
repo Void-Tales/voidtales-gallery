@@ -27,10 +27,10 @@
     "gen:imagejson": "node scripts/generate-images.js"
   },
   "dependencies": {
-    "@astrojs/check": "^0.9.9",
-    "@astrojs/preact": "^6.0.1",
-    "@astrojs/sitemap": "^3.7.3",
-    "astro": "^7.0.7",
+    "@astrojs/check": "^0.9.12",
+    "@astrojs/preact": "^6.1.1",
+    "@astrojs/sitemap": "^3.7.4",
+    "astro": "^7.4.2",
     "cheerio": "^1.2.0",
     "dotenv": "^17.4.2",
     "glightbox": "^3.3.1",
@@ -39,11 +39,11 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.3",
+    "@biomejs/biome": "^2.6.3",
     "concurrently": "^9.2.3",
     "husky": "^9.1.7",
-    "sharp": "^0.34.5",
-    "stylelint": "^17.14.0",
+    "sharp": "^0.35.5",
+    "stylelint": "^17.16.0",
     "stylelint-config-astro": "^2.0.0",
     "stylelint-config-standard": "^40.0.0"
   }
