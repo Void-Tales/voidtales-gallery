@@ -6,6 +6,7 @@ import { loadSocial, loginUrl, logout, useSocial } from "../utils/social.js";
 
 const LOGIN_NOTICES: Record<string, string> = {
   "not-member": "Only members of the Void Tales Discord can like and comment.",
+  "timed-out": "You're timed out on the Void Tales Discord, so you can't like or comment right now.",
   failed: "Discord login didn't work, please try again.",
 };
 

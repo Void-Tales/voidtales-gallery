@@ -45,6 +45,27 @@ const list = (value, fallback = "") =>
     .filter(Boolean);
 const snowflakeTime = (id) => Number(BigInt(id) >> 22n) + 1420070400000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// First of the names that is left after cleaning; Discord names can be nothing but control characters.
+const displayName = (...names) => names.map((n) => (n ?? "").replace(UNSAFE_CHARS, "").trim()).find(Boolean) ?? "";
+// Text goes to Discord as plain text, the way the site shows it: no masked links, no fake
+// "-#" footer, no headings or quotes, no <@id>.
+const discordText = (s) => s.replace(/[\\*_~`|>#\-[\]()<]/g, "\\$&");
+// Webhook messages: no link previews (SUPPRESS_EMBEDS).
+const NO_EMBEDS = 4;
+
+// Rate limit key: the address, IPv6 by its /64, since one connection usually owns a whole /64.
+export function ipKey(address) {
+  const ip = String(address ?? "").replace(/^::ffff:(?=\d+\.)/i, "");
+  if (!ip.includes(":")) return ip;
+  const [head, tail] = ip.split("::");
+  const h = head ? head.split(":") : [];
+  const t = tail ? tail.split(":") : [];
+  const groups = tail === undefined ? h : [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t];
+  return `${groups
+    .slice(0, 4)
+    .map((g) => g.toLowerCase().replace(/^0+(?=.)/, ""))
+    .join(":")}::/64`;
+}
 // Reactions come as "❤️" or "❤" depending on the client; compare without the variation selector.
 const bareEmoji = (s) => s.replace(/️/g, "");
 
@@ -93,19 +114,22 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
   };
 
   // ponytail: in-memory sliding windows, reset on restart; one process is all there is.
-  // Housekeeping drops keys idle for a day, so the map stays as big as the recent users.
+  // Housekeeping drops each key once its own window has passed, so the map stays as big as
+  // the users of the last minutes (a day only for the daily comment limit).
   const hits = new Map();
   function limited(key, max, windowMs) {
     const t = now();
-    const recent = (hits.get(key) ?? []).filter((h) => t - h < windowMs);
-    if (recent.length >= max) {
-      hits.set(key, recent);
-      return true;
-    }
-    recent.push(t);
-    hits.set(key, recent);
-    return false;
+    const times = (hits.get(key)?.times ?? []).filter((h) => t - h < windowMs);
+    const over = times.length >= max;
+    if (!over) times.push(t);
+    hits.set(key, { windowMs, times });
+    return over;
   }
+
+  // OAuth logins in flight: state -> { verifier, img, expires }. The callback takes its entry
+  // out, so a state works once and a replayed callback never reaches Discord.
+  const pendingLogins = new Map();
+  const MAX_PENDING = 10_000;
 
   // ---------- Discord ----------
 
@@ -118,7 +142,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     });
     if (res.status === 429 && tries > 0) {
       const body = await res.json().catch(() => ({}));
-      await sleep((Number(body.retry_after) || 1) * 1000 + 250);
+      await sleep(Math.min(Number(body.retry_after) || 1, 60) * 1000 + 250);
       return discord(path, init, tries - 1);
     }
     return res;
@@ -248,7 +272,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
           comment.run(
             imageId,
             m.author.id,
-            m.member?.nick || m.author.global_name || m.author.username,
+            displayName(m.member?.nick, m.author.global_name, m.author.username).slice(0, 64),
             avatarUrl(m.author.id, m.author, null, guildId),
             body,
             m.id,
@@ -312,8 +336,12 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
   }
 
   // Webhook names can't contain "discord" or "clyde" and are at most 80 characters.
-  const webhookName = (name) =>
-    (name.replace(/discord|clyde/gi, "").replace(/\s+/g, " ").trim() || "Someone").slice(0, 80 - VIA.length) + VIA;
+  // Repeated, because removing one can join the rest into a new one ("disdiscordcord").
+  function webhookName(name) {
+    let clean = name;
+    while (/discord|clyde/i.test(clean)) clean = clean.replace(/discord|clyde/gi, "");
+    return (clean.replace(/\s+/g, " ").trim() || "Someone").slice(0, 80 - VIA.length) + VIA;
+  }
 
   const setMsg = (id, value) => q("UPDATE comments SET discord_msg_id = ? WHERE id = ?").run(value, id);
 
@@ -328,8 +356,9 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
       body: JSON.stringify({
         username: webhookName(c.name),
         avatar_url: c.avatar ?? undefined,
-        content: `${c.body}\n-# [View in the gallery](<${origin}/#img-${c.image_id}>)`,
+        content: `${discordText(c.body)}\n-# [View in the gallery](<${origin}/#img-${c.image_id}>)`,
         allowed_mentions: { parse: [] },
+        flags: NO_EMBEDS,
       }),
     });
     if (res.ok) {
@@ -348,7 +377,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     throw new Error(`discord ${res.status}/${code} sending comment ${c.id}`);
   }
 
-  // The bot (admin) deletes, not the webhook: that also works after the webhook was replaced.
+  // The bot (Manage Messages) deletes, not the webhook: that also works after the webhook was replaced.
   async function unsend(c) {
     const res = await botWrite("DELETE", `/channels/${c.message_id}/messages/${c.discord_msg_id}`);
     // 404: the message or the whole thread is already gone.
@@ -432,6 +461,25 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     );
   };
 
+  const isStaff = (member) => ((member.roles ?? []).some((r) => staffRoles.has(r)) ? 1 : 0);
+  const timedOut = (member) => Date.parse(member.communication_disabled_until ?? "") > now();
+
+  // Login checks membership, timeout and staff role once; this checks them again on every
+  // sync, so leaving the guild, a timeout or a lost role ends the session within 10 minutes.
+  // A Discord error keeps the session: an outage should not log everybody out.
+  // ponytail: one GET per logged-in user and run, bounded by Discord's rate limit; stagger past a few hundred sessions.
+  async function recheckSessions() {
+    for (const { user_id: id } of q("SELECT DISTINCT user_id FROM sessions WHERE expires > ?").all(now())) {
+      try {
+        const member = await botJson(`/guilds/${guildId}/members/${id}`);
+        if (!member || member.pending || timedOut(member)) q("DELETE FROM sessions WHERE user_id = ?").run(id);
+        else q("UPDATE sessions SET is_staff = ? WHERE user_id = ?").run(isStaff(member), id);
+      } catch (err) {
+        console.error("[recheck]", err.message);
+      }
+    }
+  }
+
   // Recent posts every run, all of them once a day.
   async function sync() {
     if (!env.DISCORD_BOT_TOKEN || state.syncing) return;
@@ -442,6 +490,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
       const posts = q("SELECT DISTINCT channel_id, message_id FROM image_posts").all();
       for (const p of posts)
         if (full || now() - snowflakeTime(p.message_id) < RECENT) await syncPost(p.channel_id, p.message_id);
+      await recheckSessions();
       await mirror();
       state.lastSync = now();
       if (full) state.lastFullSync = now();
@@ -454,7 +503,9 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
 
   async function refreshImages() {
     try {
-      const res = await fetch(`${env.IMAGES_URL || `${origin}/images.json`}?t=${now()}`);
+      const res = await fetch(`${env.IMAGES_URL || `${origin}/images.json`}?t=${now()}`, {
+        signal: AbortSignal.timeout(30_000),
+      });
       if (!res.ok) throw new Error(`images.json ${res.status}`);
       const images = (await res.json()).filter((i) => IMAGE_ID.test(String(i.id)));
       state.images = new Map(images.map((i) => [String(i.id), String(i.title ?? "")]));
@@ -469,8 +520,8 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     try {
       q("DELETE FROM sessions WHERE expires < ?").run(now());
       q("DELETE FROM comments WHERE deleted_at < ?").run(now() - PURGE_DELETED);
-      // DAY is the longest rate limit window; older hits can't count any more.
-      for (const [key, times] of hits) if (now() - times.at(-1) >= DAY) hits.delete(key);
+      for (const [key, h] of hits) if (now() - h.times.at(-1) >= h.windowMs) hits.delete(key);
+      for (const [key, p] of pendingLogins) if (p.expires <= now()) pendingLogins.delete(key);
       if (!env.BACKUP_PATH) return;
       const day = new Date(now()).toISOString().slice(0, 10);
       if (kvGet("backup_day") === day) return;
@@ -489,8 +540,12 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        content: `💬 **${name}** commented on <${origin}/#img-${imageId}>:\n>>> ${body}`.slice(0, 1900),
+        content: `💬 **${discordText(name)}** commented on <${origin}/#img-${imageId}>:\n>>> ${discordText(body)}`.slice(
+          0,
+          1900,
+        ),
         allowed_mentions: { parse: [] },
+        flags: NO_EMBEDS,
       }),
     }).catch((err) => console.error("[webhook]", err.message));
   }
@@ -538,19 +593,22 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
       if (size > MAX_BODY) throw Object.assign(new Error("too large"), { status: 413 });
       chunks.push(chunk);
     }
+    let value;
     try {
-      return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
-    } catch {
-      throw Object.assign(new Error("bad json"), { status: 400 });
-    }
+      value = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+    } catch {}
+    // "null" or "1" parse fine but are no request body.
+    if (!value || typeof value !== "object") throw Object.assign(new Error("bad json"), { status: 400 });
+    return value;
   }
 
-  const clientIp = (req) => req.headers["cf-connecting-ip"] || req.socket.remoteAddress;
+  const clientIp = (req) => ipKey(req.headers["cf-connecting-ip"] || req.socket.remoteAddress);
 
   const likeCount = (imageId) => q("SELECT COUNT(*) AS n FROM likes WHERE image_id = ?").get(imageId).n;
 
   async function login(req, res, url) {
-    if (limited(`login:${clientIp(req)}`, 10, MIN)) return send(res, 429, { error: "rate_limited" });
+    if (limited(`login:${clientIp(req)}`, 10, MIN) || pendingLogins.size >= MAX_PENDING)
+      return send(res, 429, { error: "rate_limited" });
     const img = url.searchParams.get("img") ?? "";
     const stateToken = b64url(randomBytes(24));
     const verifier = b64url(randomBytes(32));
@@ -564,50 +622,63 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
       code_challenge: challenge,
       code_challenge_method: "S256",
     });
-    const back = IMAGE_ID.test(img) ? img : "";
-    redirect(res, `https://discord.com/oauth2/authorize?${params}`, [
-      cookie(OAUTH_COOKIE, `${stateToken}.${verifier}.${back}`, 600),
-    ]);
+    pendingLogins.set(stateToken, { verifier, img: IMAGE_ID.test(img) ? img : "", expires: now() + 10 * MIN });
+    // The cookie ties the state to this browser (login CSRF); everything else stays here.
+    redirect(res, `https://discord.com/oauth2/authorize?${params}`, [cookie(OAUTH_COOKIE, stateToken, 600)]);
   }
 
   async function callback(req, res, url) {
-    const [stateToken, verifier, img] = (cookies(req)[OAUTH_COOKIE] ?? "").split(".");
+    const stateToken = cookies(req)[OAUTH_COOKIE] ?? "";
+    const pending = pendingLogins.get(stateToken);
+    pendingLogins.delete(stateToken);
+    const img = pending?.img ?? "";
     const clear = cookie(OAUTH_COOKIE, "", 0);
     const back = (status) => redirect(res, `/?login=${status}${img ? `#img-${img}` : ""}`, [clear]);
     const code = url.searchParams.get("code");
-    if (!stateToken || !code || url.searchParams.get("state") !== stateToken) return back("failed");
+    if (!pending || pending.expires <= now() || !code || url.searchParams.get("state") !== stateToken)
+      return back("failed");
+    // Each callback costs a token exchange at Discord, and too many get the server's IP blocked there.
+    if (limited(`callback:${clientIp(req)}`, 10, MIN) || limited("oauth-token", 30, MIN)) return back("failed");
 
-    const tokenRes = await discord("/oauth2/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: env.DISCORD_CLIENT_ID,
-        client_secret: env.DISCORD_CLIENT_SECRET,
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: redirectUri,
-        code_verifier: verifier,
-      }),
-    });
+    // No 429 retry (tries 0) while a person is waiting for the redirect.
+    const tokenRes = await discord(
+      "/oauth2/token",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: env.DISCORD_CLIENT_ID,
+          client_secret: env.DISCORD_CLIENT_SECRET,
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: redirectUri,
+          code_verifier: pending.verifier,
+        }),
+      },
+      0,
+    );
     if (!tokenRes.ok) return back("failed");
     const { access_token: accessToken } = await tokenRes.json();
     // The access token is used for this one call and never stored.
-    const memberRes = await discord(`/users/@me/guilds/${guildId}/member`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const memberRes = await discord(
+      `/users/@me/guilds/${guildId}/member`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      0,
+    );
     if (memberRes.status === 404) return back("not-member");
     if (!memberRes.ok) return back("failed");
     const member = await memberRes.json();
     if (member.pending) return back("not-member");
+    if (timedOut(member)) return back("timed-out");
 
     const user = member.user;
     const token = b64url(randomBytes(32));
     q("INSERT INTO sessions (token_hash, user_id, name, avatar, is_staff, expires) VALUES (?, ?, ?, ?, ?, ?)").run(
       sha256(token),
       user.id,
-      (member.nick || user.global_name || user.username).slice(0, 64),
+      displayName(member.nick, user.global_name, user.username).slice(0, 64),
       avatarUrl(user.id, user, member, guildId),
-      (member.roles ?? []).some((r) => staffRoles.has(r)) ? 1 : 0,
+      isStaff(member),
       now() + SESSION_TTL,
     );
     redirect(res, img ? `/#img-${img}` : "/", [clear, cookie(SESSION_COOKIE, token, SESSION_TTL / 1000)]);
@@ -761,7 +832,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     }
   }
 
-  return { db, state, handle, sync, syncPost, mirror, refreshImages, housekeeping };
+  return { db, state, hits, handle, sync, syncPost, recheckSessions, mirror, refreshImages, housekeeping };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

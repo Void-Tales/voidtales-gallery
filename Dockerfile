@@ -1,5 +1,5 @@
 # Stage 1: Base image for all subsequent stages, using a minimal Node.js environment
-FROM node:24-alpine AS base
+FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS base
 
 # Optional build arguments for remote downloads (handled in CI workflow)
 ARG EXT_DL_URL_MARKDOWN
@@ -42,7 +42,7 @@ RUN pnpm run build
 # ------------------------------------------------------------
 
 # Stage 3: Final production image for serving static files with Nginx
-FROM nginx:alpine
+FROM nginx:alpine@sha256:a3554c0d0b48177b1413c26e01f695334428020d9df01243fbae3e11cfd17417
 # Copy built static files from the build stage to the Nginx web server directory
 COPY --from=build /app/dist /usr/share/nginx/html
 # Copy thumbnail images from the build stage to the Nginx serving directory
