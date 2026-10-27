@@ -262,7 +262,11 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     tx(() => {
       for (const imageId of imageIds) {
         q("DELETE FROM likes WHERE image_id = ? AND source = 'discord'").run(imageId);
-        const like = q("INSERT OR IGNORE INTO likes (image_id, user_id, source, created) VALUES (?, ?, 'discord', ?)");
+        // One person, one like: a site like the same person also reacted with becomes the Discord
+        // one, or Discord would show it twice (reaction plus the like note).
+        const like = q(
+          "INSERT INTO likes (image_id, user_id, source, created) VALUES (?, ?, 'discord', ?) ON CONFLICT (image_id, user_id) DO UPDATE SET source = 'discord'",
+        );
         for (const u of users) like.run(imageId, u, now());
         q("DELETE FROM comments WHERE image_id = ? AND source = 'discord'").run(imageId);
         const comment = q(
@@ -410,6 +414,83 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     return true;
   }
 
+  // ---------- Site likes -> the like note ----------
+  //
+  // A bot can't react for someone else, so the post's thread gets one bot message that counts
+  // the site likes, without names (the privacy policy promises counts only). Discord reactions
+  // sit on the post already and are not counted again. kv "likenote:<post>" = {id, text}; id "-"
+  // means no thread to post in (post gone, thread locked), tried again once the text changes.
+
+  const imageLink = (id) => `<${origin}/#img-${id}>`;
+  function likeText(images) {
+    const liked = images.filter((i) => i.n > 0);
+    if (images.length === 1)
+      return liked.length ? `-# ❤️ ${liked[0].n} like${liked[0].n === 1 ? "" : "s"} in the gallery · [View](${imageLink(liked[0].image_id)})` : "";
+    return liked
+      .map((i) => {
+        const title = (state.images.get(i.image_id) || `Image ${images.indexOf(i) + 1}`).slice(0, 80);
+        return `-# [${discordText(title)}](${imageLink(i.image_id)}) · ❤️ ${i.n}`;
+      })
+      .join("\n");
+  }
+
+  async function likeNote(p) {
+    const key = `likenote:${p.message_id}`;
+    const text = likeText(p.images);
+    const note = JSON.parse(kvGet(key) ?? "null");
+    if ((note?.text ?? "") === text) return;
+    const drop = () => q("DELETE FROM kv WHERE key = ?").run(key);
+    // A thread started from a message shares its ID.
+    const path = note && `/channels/${p.message_id}/messages/${note.id}`;
+    if (note && note.id !== "-") {
+      if (!text) {
+        const res = await botWrite("DELETE", path);
+        // 404: the message or the whole thread is already gone.
+        if (!res.ok && res.status !== 404) throw new Error(`discord ${res.status} deleting like note ${p.message_id}`);
+        return drop();
+      }
+      let res = await botWrite("PATCH", path, { content: text });
+      // 50083: archived threads take no edits; reopening needs only Send Messages in Threads.
+      if (!res.ok && (await errorCode(res)) === 50083) {
+        await botWrite("PATCH", `/channels/${p.message_id}`, { archived: false });
+        res = await botWrite("PATCH", path, { content: text });
+      }
+      if (res.ok) return kvSet(key, JSON.stringify({ id: note.id, text }));
+      // 404: someone deleted the note; a new one goes out below. Anything else (thread locked)
+      // leaves the old note as it is.
+      if (res.status !== 404) {
+        console.warn(`[likes] post ${p.message_id}: discord ${res.status} editing the like note`);
+        return kvSet(key, JSON.stringify({ id: "-", text }));
+      }
+    }
+    if (!text) return drop();
+    const t = await thread(p.channel_id, p.message_id, p.images[0].image_id);
+    if (!t || t.thread_metadata?.locked) return kvSet(key, JSON.stringify({ id: "-", text }));
+    // Archived threads reopen on their own when the bot posts.
+    const res = await botWrite("POST", `/channels/${t.id}/messages`, {
+      content: text,
+      allowed_mentions: { parse: [] },
+      flags: NO_EMBEDS,
+    });
+    if (!res.ok) throw new Error(`discord ${res.status}/${await errorCode(res)} sending like note ${p.message_id}`);
+    kvSet(key, JSON.stringify({ id: (await res.json()).id, text }));
+  }
+
+  // ponytail: one SQL pass per run, Discord only where the text changed; failures are logged
+  // and retried next run, no alert of their own (GalleryMirrorBacklog counts comments only).
+  async function likeNotes() {
+    const posts = new Map();
+    for (const r of q(
+      `SELECT p.channel_id, p.message_id, p.image_id, COUNT(l.user_id) AS n FROM image_posts p
+       LEFT JOIN likes l ON l.image_id = p.image_id AND l.source = 'site'
+       GROUP BY p.image_id ORDER BY p.image_id`,
+    ).all()) {
+      if (!posts.has(r.message_id)) posts.set(r.message_id, { channel_id: r.channel_id, message_id: r.message_id, images: [] });
+      posts.get(r.message_id).images.push(r);
+    }
+    for (const p of posts.values()) await likeNote(p).catch((err) => console.error("[likes]", err.message));
+  }
+
   const outbox = (deleted, since = 0) =>
     q(
       `SELECT c.id, c.image_id, c.name, c.avatar, c.body, c.discord_msg_id, c.created, p.channel_id, p.message_id
@@ -439,6 +520,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
         for (const c of outbox(false, now() - MIRROR_WINDOW))
           await deliver(c).catch((err) => console.error("[mirror]", err.message));
         for (const c of outbox(true)) await unsend(c).catch((err) => console.error("[mirror]", err.message));
+        await likeNotes();
       } while (again);
     })().finally(() => {
       running = null;
@@ -769,6 +851,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
           sess.user_id,
           now(),
         );
+      kick();
       return send(res, 200, { liked: !had, likes: likeCount(imageId) });
     }
 

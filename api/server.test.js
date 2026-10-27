@@ -528,6 +528,102 @@ test("unliking a Discord like removes the reaction there", async () => {
   assert.equal(source(), "site");
 });
 
+test("site likes show up as one bot message in the post's thread", async () => {
+  const P5 = snow(T + 14_400_000);
+  const NOTE = snow(T + DAY + 1);
+  const NOTE2 = snow(T + DAY + 2);
+  const heart = encodeURIComponent("❤️");
+  // Earlier tests left site likes and posts behind; they are not what this test is about.
+  app.db.prepare("DELETE FROM likes WHERE source = 'site'").run();
+  app.db.prepare("DELETE FROM kv WHERE key LIKE 'likenote:%'").run();
+  app.db.prepare("INSERT OR REPLACE INTO image_posts (image_id, channel_id, message_id) VALUES (?, ?, ?)").run(IMG, GALLERY, P5);
+  discord.set(`/channels/${GALLERY}/messages/${P5}`, { id: P5, content: "Castle" });
+
+  const notes = [NOTE, NOTE2];
+  let edit = [];
+  onWrite = (method, path) => {
+    if (path === `/channels/${GALLERY}/messages/${P5}/threads`) {
+      discord.set(`/channels/${GALLERY}/messages/${P5}`, { id: P5, thread: { id: P5, thread_metadata: {} } });
+      return json({ id: P5 });
+    }
+    if (method === "POST" && path === `/channels/${P5}/messages`) return json({ id: notes.shift() });
+    if (method === "PATCH" && path.startsWith(`/channels/${P5}/messages/`)) {
+      const status = edit.shift() ?? 200;
+      return status === 200 ? json({}) : json({ code: status === 400 ? 50083 : 10008 }, status);
+    }
+    return method === "DELETE" ? new Response(null, { status: 204 }) : json({});
+  };
+  const ana = session("ana-likes", "901", "ana");
+  const ben = session("ben-likes", "902", "ben");
+  const like = (cookie, img = IMG) => req(`/api/images/${img}/like`, { method: "POST", cookie });
+  const sent = () => writes.map((w) => `${w.method} ${w.path}`);
+  const one = `-# ❤️ 1 like in the gallery · [View](<${ORIGIN}/#img-${IMG}>)`;
+  const line = (n, img, count) => `-# [Image ${n}](<${ORIGIN}/#img-${img}>) · ❤️ ${count}`;
+
+  // First like on the site: the bot opens the thread and posts the note right away, no names, no pings.
+  writes.length = 0;
+  await like(ana);
+  for (let i = 0; i < 50 && writes.length < 2; i++) await new Promise((r) => setTimeout(r, 2));
+  assert.deepEqual(sent(), [`POST /channels/${GALLERY}/messages/${P5}/threads`, `POST /channels/${P5}/messages`]);
+  assert.deepEqual(writes[1].body, { content: one, allowed_mentions: { parse: [] }, flags: 4 });
+
+  // Nothing changed, nothing sent.
+  writes.length = 0;
+  await app.mirror();
+  assert.equal(writes.length, 0);
+
+  // Two images on the post: one line each, the same message edited. Each like kicks the mirror
+  // itself; mirror() waits for that run, so the writes are complete afterwards.
+  app.db.prepare("INSERT OR REPLACE INTO image_posts (image_id, channel_id, message_id) VALUES (?, ?, ?)").run(IMG2, GALLERY, P5);
+  writes.length = 0;
+  await like(ben, IMG2);
+  await app.mirror();
+  assert.deepEqual(sent(), [`PATCH /channels/${P5}/messages/${NOTE}`]);
+  assert.equal(writes[0].body.content, `${line(1, IMG, 1)}\n${line(2, IMG2, 1)}`);
+
+  // Archived thread: reopened, then edited.
+  edit = [400];
+  writes.length = 0;
+  await like(ben);
+  await app.mirror();
+  assert.deepEqual(sent(), [`PATCH /channels/${P5}/messages/${NOTE}`, `PATCH /channels/${P5}`, `PATCH /channels/${P5}/messages/${NOTE}`]);
+  assert.deepEqual(writes[1].body, { archived: false });
+  assert.equal(writes[2].body.content, `${line(1, IMG, 2)}\n${line(2, IMG2, 1)}`);
+
+  // Staff deleted the note in Discord: the next change posts a new one.
+  edit = [404];
+  writes.length = 0;
+  await like(ben, IMG2);
+  await app.mirror();
+  assert.deepEqual(sent(), [`PATCH /channels/${P5}/messages/${NOTE}`, `POST /channels/${P5}/messages`]);
+  assert.equal(writes[1].body.content, line(1, IMG, 2));
+
+  // Ana also reacts in Discord: one person, one like, so the note stops counting her.
+  discord.set(`/channels/${GALLERY}/messages/${P5}`, { id: P5, reactions: [{ emoji: { name: "❤️" } }], thread: { id: P5, thread_metadata: {} } });
+  discord.set(`/channels/${GALLERY}/messages/${P5}/reactions/${heart}?limit=100`, [{ id: "901" }]);
+  await app.syncPost(GALLERY, P5);
+  writes.length = 0;
+  await app.mirror();
+  assert.equal(writes[0].body.content, line(1, IMG, 1));
+  assert.equal((await (await req("/api/stats")).json())[IMG].likes, 2, "ana once, ben once");
+
+  // No site likes left: the note goes.
+  writes.length = 0;
+  await like(ben);
+  await app.mirror();
+  assert.deepEqual(sent(), [`DELETE /channels/${P5}/messages/${NOTE2}`]);
+  assert.equal(app.db.prepare("SELECT COUNT(*) AS n FROM kv WHERE key LIKE 'likenote:%'").get().n, 0);
+
+  // A locked thread takes nothing, and isn't asked again until the count changes.
+  discord.set(`/channels/${GALLERY}/messages/${P5}`, { id: P5, thread: { id: P5, thread_metadata: { locked: true } } });
+  await like(ben);
+  await app.mirror();
+  writes.length = 0;
+  await app.mirror();
+  assert.equal(writes.length, 0);
+  assert.equal(JSON.parse(app.db.prepare("SELECT value FROM kv WHERE key = ?").get(`likenote:${P5}`).value).id, "-");
+});
+
 test("sessions follow membership, timeout and staff role", async () => {
   const member = (id, extra = {}) => ({ user: { id }, roles: [], ...extra });
   const gone = session("re-gone", "601", "gone");
