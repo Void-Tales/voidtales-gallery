@@ -8,7 +8,14 @@ no CORS, the session cookie stays first-party.
 - **Reading** is public: `GET /api/stats`, `GET /api/images/:id/comments`.
 - **Writing** needs a Discord login and membership in the Void Tales guild (OAuth2 code flow with PKCE, scopes
   `identify guilds.members.read`). Sessions last 7 days; only the SHA-256 of the cookie is stored, the Discord
-  access token is not stored at all.
+  access token is not stored at all. A login `state` works once and for 10 minutes; the PKCE verifier stays on
+  the server, the cookie only carries the state. Members in a timeout can't log in.
+- **Membership is checked again on every sync**: the bot looks up every logged-in user in the guild. Left the
+  guild or timed out → the session ends; staff role taken away → staff rights end, at the latest after 10
+  minutes. A Discord error keeps the session.
+- **Rate limits** (in memory, reset on restart): login 10/min per address, callback 10/min per address and 30
+  token exchanges per minute in total, likes 60/min and comments 5/min and 30/day per user. IPv6 addresses count
+  by their /64.
 - **Discord mirror**: every 10 minutes (posts from the last 30 days, all posts once a day) the configured like
   emojis on the original Discord post count as likes for every image of that post, and replies in the post's
   thread show up as comments; Discord stays the place to moderate those.
@@ -16,9 +23,9 @@ no CORS, the session cookie stays first-party.
   itself is never changed for this.
 - **Site comments go to Discord too**: right after posting (and retried on every sync) a site comment is sent to
   the post's thread through a channel webhook named "Void Tales Gallery", as `<name> · via Gallery` with the
-  commenter's avatar and a link back to the image; mentions are disabled. The bot opens the thread when the post
-  has none and makes the webhook on first use (it needs *Manage Webhooks*, *Create Public Threads* and *Manage
-  Messages* in the gallery channels; the VoidBot is admin). Archived threads reopen by themselves; locked
+  commenter's avatar and a link back to the image; mentions and link previews are disabled, and Markdown is
+  escaped so Discord shows the same plain text as the site (the staff webhook too). The bot opens the thread when
+  the post has none and makes the webhook on first use. Archived threads reopen by themselves; locked
   threads, deleted posts and comments older than 7 days are skipped. Deleting on the site deletes the Discord
   message; staff deleting the message in Discord deletes the comment on the site with the next sync
   (`deleted_by = 'discord'`). State lives in `comments.discord_msg_id`: `NULL` = not sent yet, `-` = never
@@ -35,7 +42,7 @@ no CORS, the session cookie stays first-party.
 |---|---|---|
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | yes | OAuth app; redirect URI `https://gallery.voidtales.win/api/callback` |
 | `DISCORD_GUILD_ID` | yes | guild whose members may write |
-| `DISCORD_BOT_TOKEN` | for the mirror | bot with read access to the gallery channels; without it there is no Discord sync |
+| `DISCORD_BOT_TOKEN` | for the mirror | bot of the OAuth app itself (see below); without it there is no Discord sync and no membership re-check |
 | `STAFF_ROLE_IDS` | no | comma-separated role IDs that may delete any comment |
 | `STAFF_WEBHOOK_URL` | no | Discord webhook that gets every new site comment (mentions disabled) |
 | `GALLERY_CHANNEL_IDS` | no | channels to scan for n8n summaries (default: the two gallery channels) |
@@ -46,6 +53,17 @@ no CORS, the session cookie stays first-party.
 | `DB_PATH`, `BACKUP_PATH` | no | default `/data/gallery.db`, `/data/backup/gallery.db` |
 
 Secrets only as environment of the Dokploy app, never in the repo.
+
+### The bot
+
+The bot is the bot user of the same Discord app as the login, not an admin bot. It never connects to the
+gateway (it shows as offline); the API only makes REST calls with it.
+
+- Developer Portal: *Public Bot* off, *Message Content Intent* on (thread replies are read as comments), the
+  other two intents off.
+- In the guild without any role and server permissions; in each gallery channel a member override allowing
+  *View Channel*, *Read Message History*, *Manage Messages*, *Manage Webhooks* and *Create Public Threads*
+  (`34896684032`).
 
 ## Local
 

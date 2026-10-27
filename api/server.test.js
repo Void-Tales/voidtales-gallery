@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { after, before, test } from "node:test";
-import { createApp } from "./server.js";
+import { createApp, ipKey } from "./server.js";
 
 const ORIGIN = "https://gallery.voidtales.win";
 const GUILD = "1264616683671388252";
@@ -15,16 +15,27 @@ const N8N = "1404876556425494548";
 // Snowflakes with a real timestamp, so the "posted within 10 minutes" check works.
 const snow = (ms) => String((BigInt(ms - 1420070400000) << 22n) + 1n);
 const T = Date.parse("2026-10-20T12:00:00Z");
+const MIN = 60_000;
+const DAY = 86_400_000;
+// The API's clock; tests that move it put it back.
+let clock = T + DAY;
 
 // Fake Discord: path -> JSON (or a status number). Writes are recorded and answered by onWrite.
 const discord = new Map();
 const writes = [];
 let onWrite = () => json({}, 404);
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
+let tokenRequests = 0;
+const staffPosts = [];
 async function fakeFetch(url, init = {}) {
   const u = new URL(url);
   if (u.pathname === "/images.json") return json([{ id: IMG }, { id: IMG2 }, { id: "default-1" }]);
+  if (u.hostname === "staff.example") {
+    staffPosts.push(JSON.parse(init.body));
+    return new Response(null, { status: 204 });
+  }
   if (u.pathname === "/api/v10/oauth2/token") {
+    tokenRequests++;
     const code = new URLSearchParams(init.body).get("code");
     return code === "bad" ? json({}, 400) : json({ access_token: `at-${code}` });
   }
@@ -34,6 +45,11 @@ async function fakeFetch(url, init = {}) {
       member: { user: { id: "100", username: "alice", avatar: null }, roles: [] },
       staff: { user: { id: "200", username: "mod", global_name: "Mod" }, roles: [STAFF_ROLE] },
       pending: { user: { id: "300", username: "new" }, roles: [], pending: true },
+      muted: {
+        user: { id: "400", username: "loud" },
+        roles: [],
+        communication_disabled_until: new Date(T + 2 * DAY).toISOString(),
+      },
     };
     return members[who] ? json(members[who]) : json({ message: "Unknown Guild" }, 404);
   }
@@ -47,6 +63,11 @@ async function fakeFetch(url, init = {}) {
   if (typeof hit === "number") return json({}, hit);
   return hit ? json(hit) : json([], 200);
 }
+
+// What the bot sees in the guild; the sync checks every session against it.
+discord.set(`/guilds/${GUILD}/members/100`, { user: { id: "100" }, roles: [] });
+discord.set(`/guilds/${GUILD}/members/200`, { user: { id: "200" }, roles: [STAFF_ROLE] });
+discord.set(`/guilds/${GUILD}/members/999`, { user: { id: "999" }, roles: [] });
 
 let app;
 let server;
@@ -63,8 +84,9 @@ before(async () => {
       STAFF_ROLE_IDS: STAFF_ROLE,
       DISCORD_BOT_TOKEN: "bot",
       GALLERY_CHANNEL_IDS: GALLERY,
+      STAFF_WEBHOOK_URL: "https://staff.example/hook",
     },
-    { fetch: fakeFetch, now: () => T + 86_400_000 },
+    { fetch: fakeFetch, now: () => clock },
   );
   await app.refreshImages();
   server = createServer(app.handle).listen(0);
@@ -72,8 +94,9 @@ before(async () => {
 });
 after(() => server.close());
 
-function req(path, { method = "GET", cookie, origin = ORIGIN, body } = {}) {
+function req(path, { method = "GET", cookie, origin = ORIGIN, body, ip } = {}) {
   const headers = {};
+  if (ip) headers["cf-connecting-ip"] = ip;
   if (cookie) headers.cookie = cookie;
   if (origin && method !== "GET") headers.origin = origin;
   if (body !== undefined) headers["content-type"] = "application/json";
@@ -81,14 +104,18 @@ function req(path, { method = "GET", cookie, origin = ORIGIN, body } = {}) {
 }
 
 // Full OAuth round trip against the fake Discord; returns the session cookie or the redirect.
+// Every login from its own address: the clock stands still, so they'd all share one minute.
+let logins = 0;
 async function login(code, img = IMG) {
-  const start = await req(`/api/login?img=${img}`);
+  const ip = `10.0.0.${++logins}`;
+  const start = await req(`/api/login?img=${img}`, { ip });
   assert.equal(start.status, 302);
   const authorize = new URL(start.headers.get("location"));
   assert.equal(authorize.searchParams.get("code_challenge_method"), "S256");
   const oauthCookie = start.headers.getSetCookie()[0].split(";")[0];
   const cb = await req(`/api/callback?code=${code}&state=${authorize.searchParams.get("state")}`, {
     cookie: oauthCookie,
+    ip,
   });
   assert.equal(cb.status, 302);
   const sess = cb.headers.getSetCookie().find((c) => c.startsWith("__Host-vt_sess=") && !c.includes("Max-Age=0"));
@@ -110,8 +137,64 @@ test("login: member gets a hashed session, non-members and bad state get none", 
   assert.equal((await login("pending")).cookie, undefined);
   assert.match((await login("bad")).location, /login=failed/);
 
-  const forged = await req("/api/callback?code=member&state=nope", { cookie: "__Host-vt_oauth=real.v." });
+  const forged = await req("/api/callback?code=member&state=nope", { cookie: "__Host-vt_oauth=real" });
   assert.match(forged.headers.get("location"), /login=failed/);
+
+  const muted = await login("muted");
+  assert.equal(muted.cookie, undefined);
+  assert.match(muted.location, /login=timed-out/);
+});
+
+test("callback: a state works once and only for 10 minutes", async () => {
+  const ip = "10.1.0.1";
+  const start = async () => {
+    const res = await req(`/api/login?img=${IMG}`, { ip });
+    const state = new URL(res.headers.get("location")).searchParams.get("state");
+    const cookie = res.headers.getSetCookie()[0].split(";")[0];
+    // Only the state travels in the cookie; the PKCE verifier stays on the server.
+    assert.equal(cookie, `__Host-vt_oauth=${state}`);
+    return (code = "member") => req(`/api/callback?code=${code}&state=${state}`, { cookie, ip });
+  };
+  const before = tokenRequests;
+  const callback = await start();
+  assert.equal((await callback()).headers.get("location"), `/#img-${IMG}`);
+  for (let i = 0; i < 5; i++) assert.match((await callback()).headers.get("location"), /login=failed/);
+  assert.equal(tokenRequests - before, 1, "replays never reach Discord");
+
+  const late = await start();
+  clock += 10 * MIN;
+  try {
+    assert.match((await late()).headers.get("location"), /login=failed/);
+  } finally {
+    clock = T + DAY;
+  }
+  assert.equal(tokenRequests - before, 1);
+});
+
+test("rate limits: IPv6 by /64, keys leave with their window", async () => {
+  assert.equal(ipKey("::ffff:1.2.3.4"), "1.2.3.4");
+  assert.equal(ipKey("1.2.3.4"), "1.2.3.4");
+  assert.equal(ipKey("2001:0DB8:0:1::5"), "2001:db8:0:1::/64");
+  assert.equal(ipKey("2001:db8::1"), "2001:db8:0:0::/64");
+  assert.equal(ipKey("2001:db8:1:2:3:4:5:6"), "2001:db8:1:2::/64");
+
+  const codes = [];
+  for (let i = 1; i <= 11; i++) codes.push((await req("/api/login", { ip: `2001:db8:7:7::${i.toString(16)}` })).status);
+  assert.deepEqual(codes, [...Array(10).fill(302), 429], "one /64, one limit");
+  assert.equal((await req("/api/login", { ip: "2001:db8:7:8::1" })).status, 302, "the next /64 is someone else");
+
+  const cookie = session("hk-daily", "700", "hk");
+  assert.equal((await req(`/api/images/${IMG}/comments`, { method: "POST", cookie, body: { body: "hk" } })).status, 201);
+  assert.ok(app.hits.has("login:2001:db8:7:8::/64"));
+  assert.ok(app.hits.has("comment-day:700"));
+  clock += MIN;
+  try {
+    app.housekeeping();
+  } finally {
+    clock = T + DAY;
+  }
+  assert.ok(!app.hits.has("login:2001:db8:7:8::/64"), "a one-minute key is gone after a minute");
+  assert.ok(app.hits.has("comment-day:700"), "the daily one stays");
 });
 
 test("writes need Origin, then a session", async () => {
@@ -147,7 +230,17 @@ test("comments: validation, sanitising, ownership, staff", async () => {
   const big = await req(`/api/images/${IMG}/comments`, { method: "POST", cookie: alice, body: { body: "x".repeat(5000) } });
   assert.equal(big.status, 413);
 
+  assert.equal((await req(`/api/images/${IMG}/comments`, { method: "POST", cookie: alice, body: null })).status, 400);
+
+  const staffBefore = staffPosts.length;
   const created = await (await post(alice, "hi‮there\u0000 <b>")).json();
+  // The staff channel gets the comment as plain text, without previews or mentions.
+  for (let i = 0; i < 50 && staffPosts.length === staffBefore; i++) await new Promise((r) => setTimeout(r, 2));
+  assert.deepEqual(staffPosts.at(-1), {
+    content: `💬 **alice** commented on <${ORIGIN}/#img-${IMG}>:\n>>> hithere \\<b\\>`,
+    allowed_mentions: { parse: [] },
+    flags: 4,
+  });
   assert.equal(created.body, "hithere <b>");
 
   const modComment = await (await post(mod, "staff note")).json();
@@ -302,6 +395,7 @@ test("site comments go to the post's thread and come back out", async () => {
   assert.equal(exec.path, `/webhooks/${HOOK.id}/${HOOK.token}?wait=true&thread_id=${P2}`);
   assert.equal(exec.body.username, "alice · via Gallery");
   assert.deepEqual(exec.body.allowed_mentions, { parse: [] }, "no @everyone from the site");
+  assert.equal(exec.body.flags, 4, "no link previews");
   assert.equal(exec.body.content, `@everyone look at this\n-# [View in the gallery](<${ORIGIN}/#img-${IMG2}>)`);
   const firstMsg = row(first.id).discord_msg_id;
   assert.match(firstMsg, /^\d+$/);
@@ -384,14 +478,19 @@ test("thread race and webhook names", async () => {
   const c = {
     id: Number(
       app.db
-        .prepare("INSERT INTO comments (image_id, user_id, name, avatar, body, source, created) VALUES (?, '555', 'Discord Fan', 'https://cdn/x.png', 'hi', 'site', ?)")
-        .run(IMG2, T + 86_400_000).lastInsertRowid,
+        .prepare("INSERT INTO comments (image_id, user_id, name, avatar, body, source, created) VALUES (?, '555', 'disDISCORDcord', 'https://cdn/x.png', ?, 'site', ?)")
+        .run(IMG2, "**hi** [x](https://e.x) <@1>\n-# fake footer", T + 86_400_000).lastInsertRowid,
     ),
   };
   await app.mirror();
   const exec = writes.find((w) => w.path.startsWith("/webhooks/"));
   assert.equal(exec.path.split("thread_id=")[1], P3, "archived thread: the webhook reopens it");
-  assert.equal(exec.body.username, "Fan · via Gallery");
+  assert.equal(exec.body.username, "Someone · via Gallery", "no name left once discord is out");
+  assert.equal(
+    exec.body.content,
+    `\\*\\*hi\\*\\* \\[x\\]\\(https://e.x\\) \\<@1\\>\n\\-\\# fake footer\n-# [View in the gallery](<${ORIGIN}/#img-${IMG2}>)`,
+    "Discord shows the text the way the site does",
+  );
   assert.equal(exec.body.avatar_url, "https://cdn/x.png");
   assert.match(app.db.prepare("SELECT discord_msg_id FROM comments WHERE id = ?").get(c.id).discord_msg_id, /^\d+$/);
 });
@@ -427,4 +526,24 @@ test("unliking a Discord like removes the reaction there", async () => {
   // The next like is an ordinary site like again.
   assert.equal((await (await like()).json()).liked, true);
   assert.equal(source(), "site");
+});
+
+test("sessions follow membership, timeout and staff role", async () => {
+  const member = (id, extra = {}) => ({ user: { id }, roles: [], ...extra });
+  const gone = session("re-gone", "601", "gone");
+  const muted = session("re-muted", "602", "muted");
+  const demoted = session("re-demoted", "603", "demoted");
+  app.db.prepare("UPDATE sessions SET is_staff = 1 WHERE user_id = '603'").run();
+  const flaky = session("re-flaky", "604", "flaky");
+  discord.set(`/guilds/${GUILD}/members/601`, 404);
+  discord.set(`/guilds/${GUILD}/members/602`, member("602", { communication_disabled_until: new Date(T + 2 * DAY).toISOString() }));
+  discord.set(`/guilds/${GUILD}/members/603`, member("603"));
+  discord.set(`/guilds/${GUILD}/members/604`, 500);
+  assert.equal((await (await req("/api/me", { cookie: demoted })).json()).user.staff, true);
+
+  await app.recheckSessions();
+  assert.equal((await req("/api/me", { cookie: gone })).status, 401, "left the guild");
+  assert.equal((await req("/api/me", { cookie: muted })).status, 401, "timed out");
+  assert.equal((await (await req("/api/me", { cookie: demoted })).json()).user.staff, false, "role taken away");
+  assert.equal((await req("/api/me", { cookie: flaky })).status, 200, "a Discord error logs nobody out");
 });
