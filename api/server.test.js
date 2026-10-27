@@ -573,13 +573,16 @@ test("site likes show up as one bot message in the post's thread", async () => {
   assert.equal(writes.length, 0);
 
   // Two images on the post: one line each, the same message edited. Each like kicks the mirror
-  // itself; mirror() waits for that run, so the writes are complete afterwards.
-  app.db.prepare("INSERT OR REPLACE INTO image_posts (image_id, channel_id, message_id) VALUES (?, ?, ?)").run(IMG2, GALLERY, P5);
+  // itself; mirror() waits for that run, so the writes are complete afterwards. Numbered in the
+  // order the images were mapped (attachment order), not by ID: here IMG2 comes first.
+  const map = app.db.prepare("INSERT OR REPLACE INTO image_posts (image_id, channel_id, message_id) VALUES (?, ?, ?)");
+  map.run(IMG2, GALLERY, P5);
+  map.run(IMG, GALLERY, P5);
   writes.length = 0;
   await like(ben, IMG2);
   await app.mirror();
   assert.deepEqual(sent(), [`PATCH /channels/${P5}/messages/${NOTE}`]);
-  assert.equal(writes[0].body.content, `${line(1, IMG, 1)}\n${line(2, IMG2, 1)}`);
+  assert.equal(writes[0].body.content, `${line(1, IMG2, 1)}\n${line(2, IMG, 1)}`);
 
   // Archived thread: reopened, then edited.
   edit = [400];
@@ -588,7 +591,7 @@ test("site likes show up as one bot message in the post's thread", async () => {
   await app.mirror();
   assert.deepEqual(sent(), [`PATCH /channels/${P5}/messages/${NOTE}`, `PATCH /channels/${P5}`, `PATCH /channels/${P5}/messages/${NOTE}`]);
   assert.deepEqual(writes[1].body, { archived: false });
-  assert.equal(writes[2].body.content, `${line(1, IMG, 2)}\n${line(2, IMG2, 1)}`);
+  assert.equal(writes[2].body.content, `${line(1, IMG2, 1)}\n${line(2, IMG, 2)}`);
 
   // Staff deleted the note in Discord: the next change posts a new one.
   edit = [404];
@@ -596,7 +599,7 @@ test("site likes show up as one bot message in the post's thread", async () => {
   await like(ben, IMG2);
   await app.mirror();
   assert.deepEqual(sent(), [`PATCH /channels/${P5}/messages/${NOTE}`, `POST /channels/${P5}/messages`]);
-  assert.equal(writes[1].body.content, line(1, IMG, 2));
+  assert.equal(writes[1].body.content, line(2, IMG, 2));
 
   // Ana also reacts in Discord: one person, one like, so the note stops counting her.
   discord.set(`/channels/${GALLERY}/messages/${P5}`, { id: P5, reactions: [{ emoji: { name: "❤️" } }], thread: { id: P5, thread_metadata: {} } });
@@ -604,7 +607,7 @@ test("site likes show up as one bot message in the post's thread", async () => {
   await app.syncPost(GALLERY, P5);
   writes.length = 0;
   await app.mirror();
-  assert.equal(writes[0].body.content, line(1, IMG, 1));
+  assert.equal(writes[0].body.content, line(2, IMG, 1));
   assert.equal((await (await req("/api/stats")).json())[IMG].likes, 2, "ana once, ben once");
 
   // No site likes left: the note goes.

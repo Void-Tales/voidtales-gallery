@@ -426,12 +426,8 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     const liked = images.filter((i) => i.n > 0);
     if (images.length === 1)
       return liked.length ? `-# ❤️ ${liked[0].n} like${liked[0].n === 1 ? "" : "s"} in the gallery · [View](${imageLink(liked[0].image_id)})` : "";
-    return liked
-      .map((i) => {
-        const title = (state.images.get(i.image_id) || `Image ${images.indexOf(i) + 1}`).slice(0, 80);
-        return `-# [${discordText(title)}](${imageLink(i.image_id)}) · ❤️ ${i.n}`;
-      })
-      .join("\n");
+    // Numbered, not titled: titles are mostly file names, and Discord shows escapes in link text verbatim.
+    return liked.map((i) => `-# [Image ${images.indexOf(i) + 1}](${imageLink(i.image_id)}) · ❤️ ${i.n}`).join("\n");
   }
 
   async function likeNote(p) {
@@ -478,12 +474,13 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
 
   // ponytail: one SQL pass per run, Discord only where the text changed; failures are logged
   // and retried next run, no alert of their own (GalleryMirrorBacklog counts comments only).
+  // rowid order is the order of the summary's delete links, which is the order of the attachments.
   async function likeNotes() {
     const posts = new Map();
     for (const r of q(
       `SELECT p.channel_id, p.message_id, p.image_id, COUNT(l.user_id) AS n FROM image_posts p
        LEFT JOIN likes l ON l.image_id = p.image_id AND l.source = 'site'
-       GROUP BY p.image_id ORDER BY p.image_id`,
+       GROUP BY p.image_id ORDER BY p.rowid`,
     ).all()) {
       if (!posts.has(r.message_id)) posts.set(r.message_id, { channel_id: r.channel_id, message_id: r.message_id, images: [] });
       posts.get(r.message_id).images.push(r);
