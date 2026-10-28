@@ -43,6 +43,11 @@ RUN pnpm run build
 
 # Stage 3: Final production image for serving static files with Nginx
 FROM nginx:alpine@sha256:a3554c0d0b48177b1413c26e01f695334428020d9df01243fbae3e11cfd17417
+# The edge keeps HTML for 5 min, and that HTML still points at the previous
+# build's hashed CSS/JS. Carry those over (as the portal does), or a deploy
+# serves unstyled pages without lightbox until the edge copy expires.
+# Grows by one CSS/JS set per change; a build without this line resets it.
+COPY --from=inventory69/voidtales-gallery:latest /usr/share/nginx/html/_astro /usr/share/nginx/html/_astro
 # Copy built static files from the build stage to the Nginx web server directory
 COPY --from=build /app/dist /usr/share/nginx/html
 # Copy thumbnail images from the build stage to the Nginx serving directory

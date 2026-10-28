@@ -794,7 +794,9 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
     const sess = session(req);
 
     if (method === "GET" && path === "/api/me") {
-      if (!sess) return send(res, 401, { user: null });
+      // 200, not 401: every guest asks once per page view, and a 401 lands in the
+      // console as an error (Lighthouse "Best Practices").
+      if (!sess) return send(res, 200, { user: null, liked: [] });
       const liked = q("SELECT image_id FROM likes WHERE user_id = ?")
         .all(sess.user_id)
         .map((r) => r.image_id);

@@ -11,7 +11,7 @@ const outDir = path.resolve('public/images/thumbs');
 const marker = path.resolve('.thumbs_generated');
 
 // Thumbnail sizes (px)
-const sizes = [200, 400, 800]; // 800px for high-res (2x)
+const sizes = [200, 400, 800, 1600]; // 800px for high-res (2x) grid tiles, 1600px for the lightbox
 
 // Skip generation if marker file exists
 if (fs.existsSync(marker)) {
@@ -48,7 +48,7 @@ if (!files.length) {
         console.log('skip', outWebp, '(already exists)');
         continue;
       }
-      await sharp(input).resize({ width: w }).webp({ quality: 80 }).toFile(outWebp);
+      await sharp(input).resize({ width: w, withoutEnlargement: true }).webp({ quality: 80 }).toFile(outWebp);
       console.log('wrote', outWebp);
     }
   }
