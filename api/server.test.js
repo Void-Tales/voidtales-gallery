@@ -537,7 +537,8 @@ test("site likes show up as one bot message in the post's thread", async () => {
   app.db.prepare("DELETE FROM likes WHERE source = 'site'").run();
   app.db.prepare("DELETE FROM kv WHERE key LIKE 'likenote:%'").run();
   app.db.prepare("INSERT OR REPLACE INTO image_posts (image_id, channel_id, message_id) VALUES (?, ?, ?)").run(IMG, GALLERY, P5);
-  discord.set(`/channels/${GALLERY}/messages/${P5}`, { id: P5, content: "Castle" });
+  // No text on the post: the thread is named after its author, not after an image title (file names).
+  discord.set(`/channels/${GALLERY}/messages/${P5}`, { id: P5, content: "", author: { id: "100", username: "shin", global_name: "Shin" }, attachments: [{}, {}] });
 
   const notes = [NOTE, NOTE2];
   let edit = [];
@@ -565,6 +566,7 @@ test("site likes show up as one bot message in the post's thread", async () => {
   await like(ana);
   for (let i = 0; i < 50 && writes.length < 2; i++) await new Promise((r) => setTimeout(r, 2));
   assert.deepEqual(sent(), [`POST /channels/${GALLERY}/messages/${P5}/threads`, `POST /channels/${P5}/messages`]);
+  assert.equal(writes[0].body.name, "Screenshots by Shin");
   assert.deepEqual(writes[1].body, { content: one, allowed_mentions: { parse: [] }, flags: 4 });
 
   // Nothing changed, nothing sent.
