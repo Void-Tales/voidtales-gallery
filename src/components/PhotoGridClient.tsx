@@ -1,5 +1,4 @@
-import GLightbox from "glightbox";
-import "glightbox/dist/css/glightbox.css";
+import type GLightbox from "glightbox";
 import { render } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { distributeColumns } from "../utils/distributeColumns.js";
@@ -29,7 +28,7 @@ type Photo = {
 
 type Tile = Photo & { index: number };
 
-const EAGER_COUNT = 6;
+const EAGER_COUNT = 3;
 const PRIORITY_COUNT = 3;
 const MAX_RETRIES = 2;
 const MAX_STAGGER = 12;
@@ -100,11 +99,9 @@ function SkeletonGrid({ cols }: { cols: number }) {
 export default function PhotoGridClient({
   initialPhotos = [],
   staffAuthors,
-  ariaLabelPrefix,
 }: {
   initialPhotos?: Photo[];
   staffAuthors?: string[];
-  ariaLabelPrefix?: string;
 }) {
   // Derselbe Bestand, den PhotoGrid.astro statisch rendert, als Prop: images.json
   // wird in das Docker-Image gebacken, ein fetch beim Seitenaufruf holt also
@@ -243,10 +240,10 @@ export default function PhotoGridClient({
       viewBtn.onclick = (event) => {
         event.stopPropagation();
         event.preventDefault();
-        const activeSlide = document.querySelector(".gslide.current");
-        const img = activeSlide?.querySelector(".gslide-image img");
-        if (img instanceof HTMLImageElement) {
-          window.open(img.src, "_blank");
+        // The slide shows the 1600w WebP, "original" means the upload itself.
+        const original = loadedPhotos[lightbox.currentIndex]?.imageUrl;
+        if (original) {
+          window.open(original, "_blank");
         } else {
           showNotification("Unable to open original image.", "error");
         }
@@ -372,55 +369,64 @@ export default function PhotoGridClient({
   useEffect(() => {
     if (visiblePhotos.length === 0) return;
     setLightboxReady(false);
-    if (window._glightboxInstance) window._glightboxInstance.destroy();
-    const lightbox = GLightbox({
-      // GLightbox types `elements` as the empty tuple `[]`, so the cast is unavoidable.
-      elements: visiblePhotos.map((photo) => ({
-        href: photo.imageUrl,
-        type: "image",
-        title: slideTitle(photo),
-        description: `Author: ${lightboxHtml(photo.author ?? "")}`,
-        // "right" keeps GLightbox from shrinking the photo by the height of the
-        // description; lightbox.css lays it out as side panel or bottom bar.
-        // Per element, because GLightbox lets its slide defaults override the
-        // global option.
-        descPosition: "right",
-      })) as unknown as [],
-      touchNavigation: true,
-      zoomable: false,
-      // No "See more" truncation: it rewrites .gslide-desc and would wipe the social panel.
-      moreLength: 0,
-      openEffect: "fade",
-      closeEffect: "fade",
-      slideEffect: "slide",
-    });
+    let cancelled = false;
+    import("./lightbox.js").then(({ default: GLightbox }) => {
+      if (cancelled) return;
+      if (window._glightboxInstance) window._glightboxInstance.destroy();
+      const lightbox = GLightbox({
+        // GLightbox types `elements` as the empty tuple `[]`, so the cast is unavoidable.
+        elements: visiblePhotos.map((photo) => ({
+          // 1600w WebP instead of the Discord PNG: same look on any screen, a fraction
+          // of the bytes (GLightbox also preloads both neighbours).
+          href: `${photo.thumbBase}-1600.webp`,
+          type: "image",
+          title: slideTitle(photo),
+          description: `Author: ${lightboxHtml(photo.author ?? "")}`,
+          // "right" keeps GLightbox from shrinking the photo by the height of the
+          // description; lightbox.css lays it out as side panel or bottom bar.
+          // Per element, because GLightbox lets its slide defaults override the
+          // global option.
+          descPosition: "right",
+        })) as unknown as [],
+        touchNavigation: true,
+        zoomable: false,
+        // No "See more" truncation: it rewrites .gslide-desc and would wipe the social panel.
+        moreLength: 0,
+        openEffect: "fade",
+        closeEffect: "fade",
+        slideEffect: "slide",
+      });
 
-    lightbox.on("open", () => {
-      addCustomButtonsToContainer(lightbox);
+      lightbox.on("open", () => {
+        addCustomButtonsToContainer(lightbox);
+      });
+      lightbox.on("slide_changed", () => {
+        addCustomButtonsToContainer(lightbox);
+      });
+      lightbox.on("close", () => {
+        document.querySelectorAll(".custom-glightbox-btns").forEach((el) => el.remove());
+        document.querySelectorAll(".gslide-social").forEach((el) => render(null, el));
+      });
+      // Inside .gslide-desc on purpose: GLightbox leaves touches there alone (no
+      // swipe while typing) and clicks inside .ginner-container don't close it.
+      // GLightbox types every handler as () => void, but slide_after_load passes the slide.
+      const onSlideLoad = ({ slideIndex, slideNode }: { slideIndex: number; slideNode?: Element }) => {
+        const photo = visiblePhotos[slideIndex];
+        const desc = slideNode?.querySelector(".gslide-desc");
+        if (!photo || !desc || desc.querySelector(".gslide-social")) return;
+        const mount = document.createElement("div");
+        mount.className = "gslide-social";
+        desc.appendChild(mount);
+        render(<SocialPanel imageId={photo.id} />, mount);
+      };
+      lightbox.on("slide_after_load", onSlideLoad as () => void);
+
+      window._glightboxInstance = lightbox;
+      setTimeout(() => setLightboxReady(true), 100); // Mark GLightbox as ready after init
     });
-    lightbox.on("slide_changed", () => {
-      addCustomButtonsToContainer(lightbox);
-    });
-    lightbox.on("close", () => {
-      document.querySelectorAll(".custom-glightbox-btns").forEach((el) => el.remove());
-      document.querySelectorAll(".gslide-social").forEach((el) => render(null, el));
-    });
-    // Inside .gslide-desc on purpose: GLightbox leaves touches there alone (no
-    // swipe while typing) and clicks inside .ginner-container don't close it.
-    // GLightbox types every handler as () => void, but slide_after_load passes the slide.
-    const onSlideLoad = ({ slideIndex, slideNode }: { slideIndex: number; slideNode?: Element }) => {
-      const photo = visiblePhotos[slideIndex];
-      const desc = slideNode?.querySelector(".gslide-desc");
-      if (!photo || !desc || desc.querySelector(".gslide-social")) return;
-      const mount = document.createElement("div");
-      mount.className = "gslide-social";
-      desc.appendChild(mount);
-      render(<SocialPanel imageId={photo.id} />, mount);
+    return () => {
+      cancelled = true;
     };
-    lightbox.on("slide_after_load", onSlideLoad as () => void);
-
-    window._glightboxInstance = lightbox;
-    setTimeout(() => setLightboxReady(true), 100); // Mark GLightbox as ready after init
   }, [loadedPhotos]);
 
   // Hash-Open: Open only once and only if GLightbox is ready and not already open
@@ -480,7 +486,6 @@ export default function PhotoGridClient({
         }}
         href={photo.imageUrl}
         data-id={photo.id}
-        aria-label={`${ariaLabelPrefix} ${photo.title}`}
         onClick={(event) => {
           event.preventDefault();
           window._glightboxInstance?.openAt(photo.index);
@@ -518,7 +523,9 @@ export default function PhotoGridClient({
           />
         )}
         <span class="photo-caption">
-          <span class="photo-caption-title">{photo.title}</span>
+          <span class="photo-caption-title" aria-hidden="true">
+            {photo.title}
+          </span>
           {photo.author && <span class="photo-caption-author">{photo.author}</span>}
         </span>
         {stat && (stat.likes > 0 || stat.comments > 0) && (
