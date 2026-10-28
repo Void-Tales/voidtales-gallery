@@ -324,12 +324,15 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
   }
 
   // The post's thread, started by the bot when nobody has yet. Null when the post is gone.
-  async function thread(channelId, messageId, imageId) {
+  // Named after the post's text, else its author: image titles are mostly file names.
+  async function thread(channelId, messageId) {
     const msg = await botJson(`/channels/${channelId}/messages/${messageId}`);
     if (!msg || msg.thread) return msg?.thread ?? null;
-    const name = (msg.content ?? "").replace(/<[^>]*>|https?:\/\/\S+/g, "").split("\n")[0].trim();
+    const text = (msg.content ?? "").replace(/<[^>]*>|https?:\/\/\S+/g, "").split("\n")[0].trim();
+    const by = displayName(msg.author?.global_name, msg.author?.username);
+    const shots = (msg.attachments?.length ?? 0) > 1 ? "Screenshots" : "Screenshot";
     const res = await botWrite("POST", `/channels/${channelId}/messages/${messageId}/threads`, {
-      name: (name || state.images.get(imageId) || "Comments").slice(0, 100),
+      name: (text || (by ? `${shots} by ${by}` : "Comments")).slice(0, 100),
       auto_archive_duration: 10080,
     });
     if (res.ok) return res.json();
@@ -350,7 +353,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
   const setMsg = (id, value) => q("UPDATE comments SET discord_msg_id = ? WHERE id = ?").run(value, id);
 
   async function deliver(c) {
-    const t = await thread(c.channel_id, c.message_id, c.image_id);
+    const t = await thread(c.channel_id, c.message_id);
     // Archived threads reopen on their own when the webhook posts; locked ones stay closed.
     if (!t || t.thread_metadata?.locked) return setMsg(c.id, "-");
     const hook = await webhook(c.channel_id);
@@ -460,7 +463,7 @@ export function createApp(env, { fetch = globalThis.fetch, now = Date.now } = {}
       }
     }
     if (!text) return drop();
-    const t = await thread(p.channel_id, p.message_id, p.images[0].image_id);
+    const t = await thread(p.channel_id, p.message_id);
     if (!t || t.thread_metadata?.locked) return kvSet(key, JSON.stringify({ id: "-", text }));
     // Archived threads reopen on their own when the bot posts.
     const res = await botWrite("POST", `/channels/${t.id}/messages`, {
