@@ -8,12 +8,16 @@ body {
 }
 
 /* Backdrop: blurred screenshot, scrim, violet glow (+ starfield in dark).
-   Fades out below the hero so the grid keeps a calm background. */
+   Fades out below the hero so the grid keeps a calm background.
+   `lvh`, not `inset: 0`: a fixed box with a bottom edge follows mobile Chrome's
+   URL bar, `cover` then rescales the screenshot and it jumps on every scroll
+   turn. The large height is constant and covers the screen with the bar hidden. */
 body::before {
   content: '';
   position: fixed;
   z-index: -1;
-  inset: 0;
+  inset: 0 0 auto;
+  height: 100lvh;
   background:
     radial-gradient(ellipse 80% 50% at 50% -10%, rgb(109 40 217 / 8%), transparent 70%),
     radial-gradient(55rem 40rem at 95% 25%, rgb(109 40 217 / 9%), transparent 70%),
