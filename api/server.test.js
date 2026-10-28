@@ -205,7 +205,7 @@ test("writes need Origin, then a session", async () => {
     403,
   );
   assert.equal((await req(`/api/images/${IMG}/like`, { method: "POST" })).status, 401);
-  assert.equal((await req("/api/me")).status, 401);
+  assert.equal((await (await req("/api/me")).json()).user, null);
   assert.equal((await req("/api/x")).status, 404);
 });
 
@@ -643,8 +643,9 @@ test("sessions follow membership, timeout and staff role", async () => {
   assert.equal((await (await req("/api/me", { cookie: demoted })).json()).user.staff, true);
 
   await app.recheckSessions();
-  assert.equal((await req("/api/me", { cookie: gone })).status, 401, "left the guild");
-  assert.equal((await req("/api/me", { cookie: muted })).status, 401, "timed out");
+  const me = async (cookie) => (await (await req("/api/me", { cookie })).json()).user;
+  assert.equal(await me(gone), null, "left the guild");
+  assert.equal(await me(muted), null, "timed out");
   assert.equal((await (await req("/api/me", { cookie: demoted })).json()).user.staff, false, "role taken away");
-  assert.equal((await req("/api/me", { cookie: flaky })).status, 200, "a Discord error logs nobody out");
+  assert.notEqual(await me(flaky), null, "a Discord error logs nobody out");
 });
