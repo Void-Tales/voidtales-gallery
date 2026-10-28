@@ -1,8 +1,18 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { defineConfig, fontProviders } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 import preact from '@astrojs/preact';
 // Import site config for global settings
 import { siteConfig } from './src/config/site.js';
+
+// PhotoGrid.astro inlines this file (is:inline, it must run before first paint), and
+// Astro doesn't hash is:inline scripts. Without the hash the browser blocked it in
+// production until 10/2026: phones got three columns, and every lazy image loaded at once.
+// Astro.csp.insertScriptHash() from the component is too late, the <meta> is already out.
+const gridScriptHash = createHash('sha256')
+  .update(readFileSync(new URL('./src/scripts/static-grid-columns.js', import.meta.url)))
+  .digest('base64');
 
 export default defineConfig({
   // Base URL for the site, used for sitemaps and canonical links
@@ -25,7 +35,10 @@ export default defineConfig({
         "form-action 'self'",
         "object-src 'none'",
       ],
-      scriptDirective: { resources: ["'self'", 'https://stats.hzwd.xyz'] },
+      scriptDirective: {
+        resources: ["'self'", 'https://stats.hzwd.xyz'],
+        hashes: [`sha256-${gridScriptHash}`],
+      },
       // The static grid sets style="aspect-ratio: …" per card; attribute styles can't be
       // hashed and can't run anything, so 'unsafe-inline' stays scoped to style-src-attr.
       // Expected violation: GLightbox injects a <style> with its scrollbar compensation
