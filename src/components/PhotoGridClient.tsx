@@ -495,18 +495,21 @@ export default function PhotoGridClient({
         {failed ? (
           <span class="photo-unavailable">Image unavailable</span>
         ) : (
+          // Order matters: Preact sets attributes in this order, and the browser
+          // starts fetching the moment src/srcset land. loading="lazy" after them
+          // came too late, all 55 thumbnails loaded at once.
           <img
-            src={src}
-            srcSet={[200, 400, 800]
-              .map((w) => `${photo.thumbBase}-${w}.webp${bust} ${w}w`)
-              .join(", ")}
-            sizes="(max-width: 639px) 100vw, (max-width: 999px) 48vw, 370px"
-            width={photo.width ?? undefined}
-            height={photo.height ?? undefined}
-            alt={photo.title}
             loading={photo.index < EAGER_COUNT ? "eager" : "lazy"}
             fetchPriority={photo.index < PRIORITY_COUNT ? "high" : "auto"}
             decoding="async"
+            width={photo.width ?? undefined}
+            height={photo.height ?? undefined}
+            alt={photo.title}
+            sizes="(max-width: 639px) 100vw, (max-width: 999px) 48vw, 370px"
+            srcSet={[200, 400, 800]
+              .map((w) => `${photo.thumbBase}-${w}.webp${bust} ${w}w`)
+              .join(", ")}
+            src={src}
             ref={(el) => {
               // Gecachte Bilder sind fertig, bevor Preact den load-Listener setzt:
               // dann feuert onLoad nie und das <img> bliebe auf opacity 0 stehen.
