@@ -93,18 +93,22 @@
   }
 }
 
-/* Skeleton shimmer. Infinite on purpose: it must never fire animationend. */
+/* Skeleton shimmer. Infinite on purpose: it must never fire animationend.
+   Moved by transform, not background-position: it runs on every card whose
+   image isn't there yet, and only transform stays off the main thread. Two
+   gradient periods (each 200% of the card) wide, shifted by one = seamless. */
 .photo::before {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: 0 auto 0 0;
+  width: 400%;
   background: linear-gradient(
     90deg,
     var(--skeleton-base) 0%,
     var(--skeleton-shimmer) 50%,
     var(--skeleton-base) 100%
   );
-  background-size: 200% 100%;
+  background-size: 50% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
@@ -122,9 +126,10 @@
 
 @keyframes shimmer {
   to {
-    background-position: -200% 0;
+    transform: translateX(-50%);
   }
 }
+
 
 /* Round the image itself, don't rely on the parent's overflow clip: a clipped
    composite layer gets rastered without antialiasing, hence stair-stepped corners. */
