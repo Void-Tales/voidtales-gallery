@@ -376,3 +376,11 @@
 .photo-social .liked svg {
   fill: var(--like);
 }
+
+/* On a phone the head picture goes first, the grid's pictures wait for `load`. `.photo` keeps
+   its place by its own aspect ratio. data-theme = script ran, ThemeInit sets `.loaded`. */
+@media (width < 640px) {
+  html[data-theme]:not(.loaded) .photo img {
+    display: none;
+  }
+}
