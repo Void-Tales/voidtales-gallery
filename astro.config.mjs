@@ -55,11 +55,21 @@ export default defineConfig({
 
   // Self-hosted, build-time fetched Google Fonts (no runtime fonts.googleapis.com request)
   fonts: [
+    // Local and trimmed: the pages only use 600 and 800, the Google file carries 200-900.
+    // fonttools varLib.instancer wght=600:800, same 226 characters, 51 down to 35 KB.
     {
-      provider: fontProviders.google(),
+      provider: fontProviders.local(),
       name: 'Unbounded',
       cssVariable: '--font-unbounded',
-      weights: [400, 600, 800],
+      options: {
+        variants: [
+          {
+            weight: '600 800',
+            style: 'normal',
+            src: ['./src/assets/fonts/unbounded-600-800.woff2'],
+          },
+        ],
+      },
     },
     {
       provider: fontProviders.google(),
