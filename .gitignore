@@ -21,6 +21,8 @@ public/images/thumbs/
 # Generated files (auto-created during build/dev)
 public/images.json
 public/sitemap.xml
+public/images/hero-*
+src/generated/
 .thumbs_generated
 
 # Test data scripts (keep in version control but mark for reference)

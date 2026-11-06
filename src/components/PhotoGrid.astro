@@ -4,6 +4,7 @@ import PhotoGridClient from './PhotoGridClient';
 import { siteConfig } from '../config/site.js';
 import { distributeColumns } from '../utils/distributeColumns';
 import { sortPhotos } from '../utils/sortPhotos.js';
+import { isSpoiler, photoAlt, photoText } from '../utils/photoText';
 import gridScript from '../scripts/static-grid-columns.js?raw';
 
 // Der Grid wird hier zusaetzlich statisch gerendert, weil die Preact-Variante
@@ -47,6 +48,7 @@ const tiles = sortPhotos(photos, 'date-desc').map((img: any, index: number) => (
 	author: img.author || '',
 	body: img.body || '',
 	date: img.date,
+	isDefault: Boolean(img.isDefault),
 	index,
 }));
 
@@ -65,12 +67,12 @@ const schema = {
 	description: siteConfig.description,
 	url: siteConfig.url,
 	numberOfItems: tiles.length,
-	associatedMedia: tiles.slice(0, 100).map((photo) => ({
+	associatedMedia: tiles.filter((photo) => !isSpoiler(photo)).slice(0, 100).map((photo) => ({
 		'@type': 'ImageObject',
 		contentUrl: new URL(photo.imageUrl, siteConfig.url).toString(),
 		thumbnailUrl: new URL(`${photo.thumbBase}-800.webp`, siteConfig.url).toString(),
-		name: photo.title,
-		...(photo.caption ? { caption: photo.caption } : {}),
+		name: photoAlt(photo),
+		...(photoText(photo) ? { caption: photoText(photo) } : {}),
 		...(photo.author ? { creditText: photo.author } : {}),
 		...(photo.date ? { uploadDate: new Date(photo.date).toISOString() } : {}),
 		...(photo.width ? { width: photo.width } : {}),
@@ -87,7 +89,7 @@ const schema = {
 					<div class="masonry-col">
 						{column.map((photo) => (
 							<a
-								class="photo loaded"
+								class:list={['photo loaded', isSpoiler(photo) && 'is-spoiler']}
 								style={`aspect-ratio: ${photo.ratio}`}
 								href={photo.imageUrl}
 								data-id={photo.id}
@@ -102,13 +104,14 @@ const schema = {
 									sizes="(max-width: 639px) 100vw, (max-width: 999px) 48vw, 370px"
 									width={photo.width ?? undefined}
 									height={photo.height ?? undefined}
-									alt={photo.caption || photo.title}
+									alt={isSpoiler(photo) ? '' : photoAlt(photo)}
 									loading={photo.index < EAGER_COUNT ? 'eager' : 'lazy'}
 									fetchpriority={photo.index < EAGER_COUNT ? 'high' : 'auto'}
 									decoding="async"
 								/>
+								{isSpoiler(photo) && <span class="spoiler-label">Spoiler, click to show</span>}
 								<span class="photo-caption">
-									<span class="photo-caption-title" aria-hidden="true">{photo.title}</span>
+									{!isSpoiler(photo) && photoText(photo) && <span class="photo-caption-title" aria-hidden="true">{photoText(photo)}</span>}
 									{photo.author && <span class="photo-caption-author">{photo.author}</span>}
 								</span>
 							</a>

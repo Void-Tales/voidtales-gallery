@@ -16,7 +16,7 @@ const year = new Date().getFullYear();
           {siteConfig.network.name}
         </a>
         <p>{siteConfig.network.tagline}</p>
-        <a href={joinUrl} class="footer-address">{siteConfig.network.server}</a>
+        <a href={joinUrl} class="footer-address"><code>{siteConfig.network.server}</code></a>
       </div>
 
       {footerColumns.map(col => (

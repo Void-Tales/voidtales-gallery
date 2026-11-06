@@ -117,7 +117,7 @@ let sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www
 
 images.forEach(img => {
   sitemap += `  <url>\n`;
-  sitemap += `    <loc>${baseUrl}/#img-${img.id}</loc>\n`;
+  sitemap += `    <loc>${baseUrl}/p/${img.id}/</loc>\n`;
   sitemap += `    <image:image>\n`;
   sitemap += `      <image:loc>${baseUrl}${img.imageUrl}</image:loc>\n`;
   if (img.caption) sitemap += `      <image:title>${xml(img.caption)}</image:title>\n`;

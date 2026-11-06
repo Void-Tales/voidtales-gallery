@@ -16,7 +16,7 @@ const sortOptions = [
   { value: 'popular', label: 'Popular', icon: '♥' },
   { value: 'name-asc', label: 'A - Z', icon: 'A' },
   { value: 'name-desc', label: 'Z - A', icon: 'Z' },
-  { value: 'random', label: 'Random', icon: '🎲' },
+  { value: 'random', label: 'Random', icon: '⇄' },
 ];
 
 // Function to get initial sort from localStorage or default

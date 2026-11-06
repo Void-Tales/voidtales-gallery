@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/ho
 import { distributeColumns } from "../utils/distributeColumns.js";
 import { getStats, loadSocial, type Stat, useSocial } from "../utils/social.js";
 import { sortPhotos } from "../utils/sortPhotos.js";
+import { isSpoiler, photoAlt, photoText } from "../utils/photoText";
 import SocialPanel, { CommentIcon, HeartIcon } from "./SocialPanel.js";
 
 declare global {
@@ -24,6 +25,7 @@ type Photo = {
   author?: string;
   body?: string;
   date?: string;
+  isDefault?: boolean;
 };
 
 type Tile = Photo & { index: number };
@@ -47,9 +49,12 @@ function columnsForWidth() {
 const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 const lightboxHtml = (text: string) => text.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]).replace(/\r?\n/g, "<br>");
 
-function slideTitle(photo: Photo) {
-  return lightboxHtml(photo.caption?.trim() || photo.body?.trim() || photo.title?.trim() || "");
-}
+const slideTitle = (photo: Photo) => lightboxHtml(photoText(photo) || "Screenshot");
+
+const slideAuthor = (photo: Photo) =>
+  photo.author
+    ? `<span>by <a class="slide-author" href="/?author=${encodeURIComponent(photo.author)}">${lightboxHtml(photo.author)}</a></span>`
+    : "";
 
 // Beim ersten Aufruf der Komponente steht der statische Grid noch, und seine
 // card-in-Animation laeuft. Die Web Animations API sagt, wie weit sie ist; als
@@ -130,9 +135,21 @@ export default function PhotoGridClient({
   // `shuffleNonce` is a dependency only so re-picking "random" re-shuffles.
   // `rank` stays null outside "popular", so like counts arriving never re-sort other orders.
   const rank = sortOption === "popular" ? rankStats : null;
-  const loadedPhotos = useMemo(
-    () => sortPhotos(originalPhotos, sortOption, rank ?? undefined),
-    [originalPhotos, sortOption, shuffleNonce, rank],
+  const [author, setAuthor] = useState(() =>
+    typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("author") ?? ""),
+  );
+  const loadedPhotos = useMemo(() => {
+    const sorted = sortPhotos(originalPhotos, sortOption, rank ?? undefined);
+    return author ? sorted.filter((photo) => photo.author === author) : sorted;
+  }, [originalPhotos, sortOption, shuffleNonce, rank, author]);
+
+  // Spoilers stay covered until clicked, and the lightbox only knows the uncovered
+  // ones, so arrowing through it can't land on one. A link to one uncovers it: whoever
+  // follows a link to a spoiler asked for it.
+  const [uncovered, setUncovered] = useState<Set<string>>(() => new Set());
+  const lightboxPhotos = useMemo(
+    () => loadedPhotos.filter((photo) => !isSpoiler(photo) || uncovered.has(photo.id)),
+    [loadedPhotos, uncovered],
   );
 
   // Entrance state lives in refs on purpose: a re-render must never restart or
@@ -217,16 +234,15 @@ export default function PhotoGridClient({
           slideIndex = activeSlide ? allSlides.indexOf(activeSlide) : -1;
         }
 
-        const photoObj = slideIndex >= 0 ? loadedPhotos[slideIndex] : undefined;
-        const photoId = photoObj?.id || "";
+        const photoId = slideIndex >= 0 ? (lightboxPhotos[slideIndex]?.id ?? "") : "";
 
-        const pageUrl =
-          window.location.origin + window.location.pathname + (photoId ? `#img-${photoId}` : "");
+        // The photo's own page: it carries a link preview for this shot and opens it here.
+        const pageUrl = `${window.location.origin}/${photoId ? `p/${photoId}/` : ""}`;
 
         // Awaited: writeText rejects (no permission, no focus) instead of throwing.
         try {
           await navigator.clipboard.writeText(pageUrl);
-          showNotification("Link copied! Share this to open the image in lightbox.", "success");
+          showNotification("Link copied.", "success");
         } catch {
           showNotification(`Failed to copy link. Please copy manually: ${pageUrl}`, "error");
         }
@@ -241,7 +257,7 @@ export default function PhotoGridClient({
         event.stopPropagation();
         event.preventDefault();
         // The slide shows the 1600w WebP, "original" means the upload itself.
-        const original = loadedPhotos[lightbox.currentIndex]?.imageUrl;
+        const original = lightboxPhotos[lightbox.currentIndex]?.imageUrl;
         if (original) {
           window.open(original, "_blank");
         } else {
@@ -281,6 +297,7 @@ export default function PhotoGridClient({
         author: img.author || "",
         body: img.body || "",
         date: img.date,
+        isDefault: img.isDefault,
       }));
       setFlashing(true);
       setTimeout(() => setFlashing(false), 200);
@@ -353,8 +370,20 @@ export default function PhotoGridClient({
   useEffect(() => {
     const hash = window.location.hash;
     if (hash.startsWith("#img-")) {
-      setPendingHashId(hash.replace("#img-", ""));
+      const id = hash.replace("#img-", "");
+      setUncovered((prev) => new Set(prev).add(id));
+      setPendingHashId(id);
     }
+  }, []);
+
+  useEffect(() => {
+    const handle = (e: Event) => {
+      resetEntranceState();
+      setAuthor((e as CustomEvent).detail.author);
+      setGridKey((prev) => prev + 1);
+    };
+    window.addEventListener("filterAuthor", handle);
+    return () => window.removeEventListener("filterAuthor", handle);
   }, []);
 
   // Kein Nachladen in Batches: PhotoGrid.astro schickt den ganzen Bestand schon
@@ -367,7 +396,7 @@ export default function PhotoGridClient({
   // GLightbox: driven by an explicit element list, because the DOM order of the
   // masonry columns no longer matches the sort order.
   useEffect(() => {
-    if (visiblePhotos.length === 0) return;
+    if (lightboxPhotos.length === 0) return;
     setLightboxReady(false);
     let cancelled = false;
     import("./lightbox.js").then(({ default: GLightbox }) => {
@@ -375,13 +404,13 @@ export default function PhotoGridClient({
       if (window._glightboxInstance) window._glightboxInstance.destroy();
       const lightbox = GLightbox({
         // GLightbox types `elements` as the empty tuple `[]`, so the cast is unavoidable.
-        elements: visiblePhotos.map((photo) => ({
+        elements: lightboxPhotos.map((photo) => ({
           // 1600w WebP instead of the Discord PNG: same look on any screen, a fraction
           // of the bytes (GLightbox also preloads both neighbours).
           href: `${photo.thumbBase}-1600.webp`,
           type: "image",
           title: slideTitle(photo),
-          description: `Author: ${lightboxHtml(photo.author ?? "")}`,
+          description: slideAuthor(photo),
           // "right" keeps GLightbox from shrinking the photo by the height of the
           // description; lightbox.css lays it out as side panel or bottom bar.
           // Per element, because GLightbox lets its slide defaults override the
@@ -411,7 +440,7 @@ export default function PhotoGridClient({
       // swipe while typing) and clicks inside .ginner-container don't close it.
       // GLightbox types every handler as () => void, but slide_after_load passes the slide.
       const onSlideLoad = ({ slideIndex, slideNode }: { slideIndex: number; slideNode?: Element }) => {
-        const photo = visiblePhotos[slideIndex];
+        const photo = lightboxPhotos[slideIndex];
         const desc = slideNode?.querySelector(".gslide-desc");
         if (!photo || !desc || desc.querySelector(".gslide-social")) return;
         const mount = document.createElement("div");
@@ -427,13 +456,13 @@ export default function PhotoGridClient({
     return () => {
       cancelled = true;
     };
-  }, [loadedPhotos]);
+  }, [lightboxPhotos]);
 
   // Hash-Open: Open only once and only if GLightbox is ready and not already open
   useEffect(() => {
     // Waits for the like counts too: a "popular" re-sort after opening would rebuild the lightbox.
     if (!pendingHashId || !lightboxReady || !socialReady) return;
-    const index = loadedPhotos.findIndex((photo) => photo.id === pendingHashId);
+    const index = lightboxPhotos.findIndex((photo) => photo.id === pendingHashId);
     if (
       index >= 0 &&
       window._glightboxInstance &&
@@ -449,7 +478,7 @@ export default function PhotoGridClient({
         }, 200);
       }
     }
-  }, [pendingHashId, loadedPhotos, lightboxReady, socialReady]);
+  }, [pendingHashId, lightboxPhotos, lightboxReady, socialReady]);
 
   function isStaffPhoto(photo: Photo) {
     return (
@@ -466,9 +495,12 @@ export default function PhotoGridClient({
     const src = `${photo.thumbBase}-400.webp${bust}`;
     const staff = isStaffPhoto(photo);
     const stat = social.stats[photo.id];
+    const covered = isSpoiler(photo) && !uncovered.has(photo.id);
+    const text = covered ? "" : photoText(photo);
     const classes = [
       "photo",
       staff && "staff-photo",
+      covered && "is-spoiler",
       revealedRef.current.has(photo.id) && "shown",
       imgLoadedRef.current.has(photo.id) && "loaded",
       failed && "is-error",
@@ -486,9 +518,15 @@ export default function PhotoGridClient({
         }}
         href={photo.imageUrl}
         data-id={photo.id}
+        aria-label={covered ? "Spoiler, click to show" : undefined}
         onClick={(event) => {
           event.preventDefault();
-          window._glightboxInstance?.openAt(photo.index);
+          if (covered) {
+            setUncovered((prev) => new Set(prev).add(photo.id));
+            return;
+          }
+          const index = lightboxPhotos.findIndex((p) => p.id === photo.id);
+          if (index >= 0) window._glightboxInstance?.openAt(index);
         }}
         onAnimationEnd={() => revealedRef.current.add(photo.id)}
       >
@@ -504,7 +542,7 @@ export default function PhotoGridClient({
             decoding="async"
             width={photo.width ?? undefined}
             height={photo.height ?? undefined}
-            alt={photo.title}
+            alt={covered ? "" : photoAlt(photo)}
             sizes="(max-width: 639px) 100vw, (max-width: 999px) 48vw, 370px"
             srcSet={[200, 400, 800]
               .map((w) => `${photo.thumbBase}-${w}.webp${bust} ${w}w`)
@@ -525,10 +563,13 @@ export default function PhotoGridClient({
             onError={() => handleImageError(photo.id, attempt)}
           />
         )}
+        {covered && <span class="spoiler-label">Spoiler, click to show</span>}
         <span class="photo-caption">
-          <span class="photo-caption-title" aria-hidden="true">
-            {photo.title}
-          </span>
+          {text && (
+            <span class="photo-caption-title" aria-hidden="true">
+              {text}
+            </span>
+          )}
           {photo.author && <span class="photo-caption-author">{photo.author}</span>}
         </span>
         {stat && (stat.likes > 0 || stat.comments > 0) && (

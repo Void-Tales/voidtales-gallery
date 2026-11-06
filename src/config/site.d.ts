@@ -7,7 +7,6 @@ export const siteConfig: {
   manifest: string;
   favicon: string;
   hero: {
-    eyebrow: string;
     title: string;
     titleAccent: string;
     subtitle: string;

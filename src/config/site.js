@@ -13,7 +13,6 @@
  * @property {string} manifest - Path to the web app manifest file.
  * @property {string} favicon - Path to the site favicon.
  * @property {Object} hero - Configuration for the homepage hero section.
- * @property {string} hero.eyebrow - Small caps label above the headline.
  * @property {string} hero.title - Main headline for the hero section.
  * @property {string} hero.titleAccent - Substring of the title rendered with the accent glow.
  * @property {string} hero.subtitle - Subtitle text for the hero section.
@@ -32,7 +31,7 @@ export const siteConfig = {
   name: 'Void Tales Gallery',
   
   // Site description: Used for SEO meta description and social media previews
-  description: 'A sleek, high-performance photo gallery built with Astro, TypeScript, and vanilla CSS/JS. Showcase your photos with modern design, automatic sorting, and seamless dark mode.',
+  description: 'Screenshots from the world of Void Tales, shot by the people who play it. Void Tales is a handcrafted Minecraft modpack and server.',
   
   // Site URL: Base URL for the site, used for canonical links and sitemaps
   url: 'https://gallery.voidtales.win',
@@ -49,10 +48,9 @@ export const siteConfig = {
   
   // Hero section configuration: Defines content for the main hero area on the homepage
   hero: {
-    eyebrow: 'Community Screenshots',  // Small caps label above the headline
     title: 'Void Tales Gallery',  // Main headline for the hero section
     titleAccent: 'Gallery',  // Part of the title that gets the accent glow
-    subtitle: 'The latest images from the world of VoidTales - sorted by date.',  // Subtitle text
+    subtitle: 'Screenshots from the world of Void Tales, shot by the people who play it.',  // Subtitle text
     cta: 'To the Portal',  // Call-to-action button text
     ctaLink: PORTAL,
   },

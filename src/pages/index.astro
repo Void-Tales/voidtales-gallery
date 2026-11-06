@@ -1,8 +1,10 @@
 ---
 import { Font } from 'astro:assets';
 import SortSelector from '../components/SortSelector';
+import AuthorFilter from '../components/AuthorFilter';
 import RefreshButton from '../components/RefreshButton.astro';
 import photos from '../../public/images.json';
+import hero from '../generated/hero.json';
 import { siteConfig } from '../config/site.js';
 
 import '../styles/variables.css';
@@ -22,6 +24,13 @@ import Footer from '../components/Footer.astro';
 const { title, titleAccent } = siteConfig.hero;
 const hasAccent = Boolean(titleAccent) && title.includes(titleAccent);
 const [beforeAccent, afterAccent] = hasAccent ? title.split(titleAccent) : [title, ''];
+
+// Everybody with a shot, most shots first.
+const counts = new Map<string, number>();
+for (const photo of photos as { author?: string }[]) {
+  if (photo.author) counts.set(photo.author, (counts.get(photo.author) ?? 0) + 1);
+}
+const authors = [...counts.entries()].sort((a, b) => b[1] - a[1]);
 
 // Absolute URL: relative og:image paths are ignored by Discord/Twitter link previews.
 const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
@@ -69,13 +78,30 @@ const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
       data-website-id="7c235267-8275-439c-8449-39b753460c67"></script>
   </head>
   <body>
+    <a class="skip-link" href="#photos">Skip to the screenshots</a>
     <Header />
     {/* Hero section */}
-    <section class="hero">
+    <section class:list={['hero', hero && 'hero-picture']}>
+      {hero && (
+        <>
+          <img
+            class="hero-img"
+            src={hero.src}
+            srcset={`${hero.small} 900w, ${hero.src} ${Math.min(hero.width, 2400)}w`}
+            sizes="100vw"
+            alt=""
+            width={hero.width}
+            height={hero.height}
+            fetchpriority="high"
+            decoding="async"
+          />
+          <div class="hero-scrim"></div>
+          <a class="hero-credit" href={`/#img-${hero.id}`}>Screenshot by {hero.author}</a>
+        </>
+      )}
       {/* Halloween only (styles/halloween.css): pixel bats, nothing over the photos */}
       <div class="spuk" aria-hidden="true"><i></i><i></i><i></i></div>
       <div class="hero-content container">
-        <span class="hero-eyebrow">{siteConfig.hero.eyebrow}</span>
         <h1 class="hero-title">
           {beforeAccent}{hasAccent && <span class="accent">{titleAccent}</span>}{afterAccent}
         </h1>
@@ -105,6 +131,7 @@ const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
             <span class="gallery-count">{photos.length} shots</span>
           </div>
           <div class="gallery-toolbar-actions">
+            <AuthorFilter authors={authors} total={photos.length} client:load />
             <SortSelector defaultSort={siteConfig.defaultSort} client:load />
             <RefreshButton />
           </div>
