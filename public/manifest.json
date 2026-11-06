@@ -1,7 +1,7 @@
 {
-  "name": "VoidTales Gallery",
+  "name": "Void Tales Gallery",
   "short_name": "VTGallery",
-  "description": "A sleek photo gallery for VoidTales",
+  "description": "Screenshots from the world of Void Tales, shot by the people who play it.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0714",

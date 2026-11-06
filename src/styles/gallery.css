@@ -27,16 +27,33 @@
 
 .gallery-count {
   color: var(--muted);
-  font-family: ui-monospace, sfmono-regular, menlo, monospace;
-  font-size: 0.75rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  font-size: 0.875rem;
 }
 
 .gallery-toolbar-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+}
+
+.author-select,
+.author-reset {
+  height: 2.25rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.author-select:hover,
+.author-reset:hover {
+  border-color: var(--accent);
 }
 
 .gallery-toolbar .sort-btn {
@@ -96,7 +113,7 @@
 /* Skeleton shimmer. Infinite on purpose: it must never fire animationend.
    Moved by transform, not background-position: it runs on every card whose
    image isn't there yet, and only transform stays off the main thread. Two
-   gradient periods (each 200% of the card) wide, shifted by one = seamless. */
+   gradient periods (each 200% of the card) wide, shifted by one: no visible joint. */
 .photo::before {
   content: '';
   position: absolute;
@@ -139,7 +156,7 @@
   border-radius: inherit;
   object-fit: cover;
   opacity: 0;
-  transition: opacity 0.35s ease-in, transform 0.5s var(--ease);
+  transition: opacity 0.35s var(--ease), transform 0.5s var(--ease);
 }
 
 /* Drop the skeleton fill once the image is in: the rounded corners antialias
@@ -171,7 +188,7 @@
   border: 1px dashed var(--border);
   border-radius: inherit;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
 }
 
 /* ---------- Hover caption ---------- */
@@ -200,15 +217,91 @@
 .photo-caption-title {
   overflow: hidden;
   font-family: var(--font-display);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
 .photo-caption-author {
-  color: rgb(255 255 255 / 72%);
-  font-size: 0.72rem;
+  color: rgb(255 255 255 / 80%);
+  font-size: 0.8125rem;
+}
+
+/* ---------- Spoilers ---------- */
+
+/* Posted as a spoiler in Discord, so covered here until somebody asks. */
+.photo.is-spoiler img,
+.photo-page-figure.is-spoiler img {
+  filter: blur(28px);
+  transform: scale(1.12);
+}
+
+.photo.is-spoiler .photo-caption {
+  display: none;
+}
+
+.spoiler-label {
+  position: absolute;
+  z-index: 2;
+  inset: 50% auto auto 50%;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: rgb(10 7 20 / 78%);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  translate: -50% -50%;
+}
+
+/* ---------- A screenshot's own page ---------- */
+
+.photo-page {
+  padding-top: var(--space-5);
+}
+
+.photo-page-back {
+  display: inline-block;
+  margin-bottom: var(--space-4);
+  color: var(--muted);
+}
+
+.photo-page-back:hover {
+  color: var(--accent);
+}
+
+.photo-page .photo-page-figure > img {
+  width: 100%;
+  height: auto;
+}
+
+.photo-page-figure {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+
+.photo-page-meta {
+  margin-top: var(--space-4);
+}
+
+.photo-page-meta h1 {
+  font-size: clamp(1.35rem, 3vw, 2rem);
+}
+
+.photo-page-meta p {
+  margin: var(--space-2) 0 var(--space-4);
+  color: var(--muted);
+}
+
+.photo-page-meta p a {
+  color: var(--accent);
+}
+
+.photo-page-meta .hero-cta {
+  display: inline-block;
 }
 
 /* ---------- Staff ---------- */
@@ -263,7 +356,7 @@
   border-radius: var(--radius-full);
   background: rgb(0 0 0 / 55%);
   color: #fff;
-  font-size: 0.72rem;
+  font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }

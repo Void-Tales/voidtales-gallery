@@ -13,7 +13,7 @@ import { navigationLinks, isExternal, searchUrl } from '../config/navigation.js'
   <div class="site-header-inner container">
     <a href={siteConfig.network.url} class="brand" aria-label={`${siteConfig.network.name} home`}>
       <BrandMark />
-      {siteConfig.network.name}
+      <span class="brand-name">{siteConfig.network.name}</span>
     </a>
 
     <nav class="header-nav" aria-label="Main navigation">

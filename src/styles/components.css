@@ -432,9 +432,12 @@ html.dark .theme-icon-sun {
   border-radius: var(--radius-md);
   background: var(--bg-raised);
   color: var(--text);
-  font-family: ui-monospace, sfmono-regular, menlo, monospace;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   transition: border-color var(--dur-fast) var(--ease);
+}
+
+.footer-address code {
+  font-family: ui-monospace, sfmono-regular, menlo, monospace;
 }
 
 .footer-address:hover,
@@ -443,11 +446,9 @@ html.dark .theme-icon-sun {
 }
 
 .footer-col-title {
-  color: var(--muted);
-  font-family: ui-monospace, sfmono-regular, menlo, monospace;
-  font-size: 0.75rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .footer-col ul {
@@ -472,7 +473,7 @@ html.dark .theme-icon-sun {
   padding-block: 1.25rem 2rem;
   border-top: 1px solid var(--border);
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
 }
 
 /* ---------- Account (Discord login) ---------- */
@@ -483,7 +484,9 @@ html.dark .theme-icon-sun {
 
 .account-login {
   display: flex;
+  flex: none;
   align-items: center;
+  white-space: nowrap;
   height: 2.25rem;
   padding: 0 var(--space-3);
   border: 1px solid var(--border);
@@ -549,7 +552,7 @@ html.dark .theme-icon-sun {
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 0.72rem;
+  font-size: 0.8125rem;
 }
 
 .account-logout {
@@ -582,4 +585,32 @@ html.dark .theme-icon-sun {
   box-shadow: var(--shadow-2);
   font-size: 0.85rem;
   transform: translateX(-50%);
+}
+
+/* Four controls next to the name don't fit a phone: the name steps back, the mark stays. */
+@media (width < 26.25rem) {
+  .brand-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 0.5rem;
+  left: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+  transform: none;
 }

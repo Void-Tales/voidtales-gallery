@@ -1,0 +1,102 @@
+---
+// One page per screenshot: its own address with its own link preview, so a shot pasted
+// into Discord shows that shot, not the gallery's card. Static, built with the rest;
+// every new image triggers a build anyway. A spoiler stays out of previews and indexes.
+import { Font } from 'astro:assets';
+import photos from '../../../public/images.json';
+import { siteConfig } from '../../config/site.js';
+import { isSpoiler, photoAlt, photoText } from '../../utils/photoText';
+
+import '../../styles/variables.css';
+import '../../styles/base.css';
+import '../../styles/layout.css';
+import '../../styles/components.css';
+import '../../styles/hero.css';
+import '../../styles/gallery.css';
+
+import Header from '../../components/Header.astro';
+import ThemeInit from '../../components/ThemeInit.astro';
+import Footer from '../../components/Footer.astro';
+
+export function getStaticPaths() {
+  return (photos as any[]).map((photo) => ({ params: { id: photo.id }, props: { photo } }));
+}
+
+const { photo } = Astro.props;
+const text = photoText(photo);
+const spoiler = isSpoiler(photo);
+const thumbBase = `/images/thumbs/${photo.id}${photo.isDefault ? '-default' : ''}`;
+const url = new URL(`/p/${photo.id}/`, siteConfig.url).toString();
+const by = photo.author ? `Screenshot by ${photo.author}` : 'Screenshot from Void Tales';
+const pageTitle = `${spoiler ? 'Spoiler' : text ? text.slice(0, 60) : by} · ${siteConfig.name}`;
+const description = spoiler
+  ? `${by}, posted as a spoiler. Open the page to see it.`
+  : text
+    ? `${by}: ${text.slice(0, 150)}`
+    : `${by}, from the world of Void Tales.`;
+const ogImage = new URL(spoiler ? siteConfig.ogImage : `${thumbBase}-800.webp`, siteConfig.url).toString();
+const dateFormat = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href={siteConfig.favicon} />
+    <Font cssVariable="--font-unbounded" preload={[{ style: 'normal' }]} />
+    <Font cssVariable="--font-instrument-sans" preload={[{ style: 'normal' }]} />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    {spoiler && <meta name="robots" content="noindex" />}
+    <meta name="theme-color" content="#0a0714" />
+    <link rel="canonical" href={url} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteConfig.name} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:url" content={url} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    <ThemeInit />
+  </head>
+  <body>
+    <a class="skip-link" href="#photo">Skip to the screenshot</a>
+    <Header />
+    <main class="container photo-page" id="photo">
+      <a class="photo-page-back" href="/">← All screenshots</a>
+      <a class="photo-page-figure" class:list={[spoiler && 'is-spoiler']} href={`/#img-${photo.id}`} data-spoiler-page={spoiler ? '' : undefined}>
+        <img
+          src={`${thumbBase}-1600.webp`}
+          srcset={`${thumbBase}-800.webp 800w, ${thumbBase}-1600.webp 1600w`}
+          sizes="(width >= 72rem) 68rem, 100vw"
+          width={photo.width ?? undefined}
+          height={photo.height ?? undefined}
+          alt={spoiler ? 'Spoiler, hidden until you open it' : photoAlt(photo)}
+          fetchpriority="high"
+          decoding="async"
+        />
+        {spoiler && <span class="spoiler-label">Spoiler, click to show in the gallery</span>}
+      </a>
+      <div class="photo-page-meta">
+        {text && !spoiler && <h1>{text}</h1>}
+        {(!text || spoiler) && <h1>{by}</h1>}
+        <p>
+          {text && !spoiler && photo.author && (
+            <>
+              by <a href={`/?author=${encodeURIComponent(photo.author)}`}>{photo.author}</a>
+              {' · '}
+            </>
+          )}
+          {photo.date && <time datetime={new Date(photo.date).toISOString()}>{dateFormat.format(new Date(photo.date))}</time>}
+        </p>
+        <a class="hero-cta" href={`/#img-${photo.id}`}>Open in the gallery</a>
+      </div>
+    </main>
+    <Footer />
+  </body>
+</html>

@@ -11,7 +11,7 @@
     "dev": "concurrently \"pnpm run watch:images\" \"astro dev\"",
     "dev-host": "concurrently \"pnpm run watch:images\" \"astro dev --host\"",
     "start": "astro dev",
-    "prebuild": "pnpm run gen:imagejson",
+    "prebuild": "pnpm run gen:imagejson && pnpm run gen:hero",
     "build": "pnpm run gen:thumbs && astro check && astro build --jobs 1",
     "preview": "astro preview",
     "astro": "astro",
@@ -24,7 +24,9 @@
     "cleanup:testdata": "node scripts/generate-test-data.js --cleanup",
     "copy:md-files": "node scripts/copy-md-files.cjs",
     "copy:original-images": "node scripts/copy-original-images.cjs",
-    "gen:imagejson": "node scripts/generate-images.js"
+    "gen:imagejson": "node scripts/generate-images.js",
+    "gen:hero": "node scripts/generate-hero.js",
+    "test": "node scripts/photo-text.test.mjs"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.12",

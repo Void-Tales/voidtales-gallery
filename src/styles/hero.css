@@ -12,14 +12,98 @@
   padding: var(--space-6) 0;
 }
 
-.hero-eyebrow {
-  display: block;
-  margin-bottom: var(--space-4);
-  color: var(--muted);
-  font-family: ui-monospace, sfmono-regular, menlo, monospace;
-  font-size: 0.75rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+/* A real shot from the gallery, resolving into the page below it. Text sits on a
+   neutral scrim, the one gradient that earns its place over a photograph. */
+.hero-picture {
+  position: relative;
+  overflow: hidden;
+  align-items: flex-end;
+  min-height: 68svh;
+}
+
+/* Both fade out to nothing at the bottom edge: the grid's backdrop is not one flat
+   colour, so a solid end would leave a seam where the hero stops. */
+.hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+}
+
+.hero-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    transparent 0%,
+    color-mix(in srgb, var(--bg) 80%, transparent) 30%,
+    transparent 74%
+  );
+}
+
+/* The same stars and shimmer as the backdrop in layout.css, which the picture covers. */
+.hero-scrim::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgb(109 40 217 / 14%), transparent 70%),
+    radial-gradient(55rem 40rem at 95% 25%, rgb(109 40 217 / 14%), transparent 70%),
+    radial-gradient(60rem 45rem at 20% 95%, rgb(109 40 217 / 10%), transparent 70%);
+  mask-image: linear-gradient(to bottom, #000 60%, transparent 100%);
+  pointer-events: none;
+}
+
+html.dark .hero-scrim::before,
+html[data-theme='dark'] .hero-scrim::before {
+  background:
+    radial-gradient(ellipse 70% 45% at 50% -5%, rgb(167 139 250 / 16%), transparent 70%),
+    radial-gradient(circle 1.2px at 20% 30%, rgb(236 232 246 / 50%) 0 100%, transparent),
+    radial-gradient(circle 1px at 68% 62%, rgb(236 232 246 / 38%) 0 100%, transparent),
+    radial-gradient(circle 1.4px at 75% 15%, rgb(236 232 246 / 44%) 0 100%, transparent),
+    radial-gradient(circle 1px at 12% 84%, rgb(236 232 246 / 32%) 0 100%, transparent),
+    radial-gradient(circle 1.2px at 45% 70%, rgb(236 232 246 / 40%) 0 100%, transparent),
+    radial-gradient(circle 1px at 88% 40%, rgb(236 232 246 / 30%) 0 100%, transparent);
+  background-size:
+    100% 100%,
+    320px 320px,
+    320px 320px,
+    260px 260px,
+    260px 260px,
+    400px 400px,
+    400px 400px;
+}
+
+.hero-content {
+  position: relative;
+}
+
+/* Fixed colours: it always sits on the picture. */
+.hero-credit {
+  position: absolute;
+  z-index: 1;
+  top: var(--space-3);
+  right: var(--space-3);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: rgb(10 7 20 / 72%);
+  color: #ece8f6;
+  font-size: 0.8125rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-img {
+    animation: hero-settle 1.4s var(--ease) both;
+  }
+}
+
+@keyframes hero-settle {
+  from {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
 }
 
 .hero-title {
@@ -35,7 +119,7 @@
   max-width: 55ch;
   margin-top: var(--space-4);
   color: var(--muted);
-  font-size: clamp(1rem, 1.4vw, 1.15rem);
+  font-size: clamp(1.125rem, 1.4vw, 1.2rem);
 }
 
 .hero-actions {
@@ -75,6 +159,10 @@
 @media (width <= 639px) {
   .hero {
     min-height: 48svh;
+  }
+
+  .hero-picture {
+    min-height: 66svh;
   }
 
   .hero-title {
