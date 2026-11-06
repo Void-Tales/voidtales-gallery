@@ -84,17 +84,25 @@ const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
     <section class:list={['hero', hero && 'hero-picture']}>
       {hero && (
         <>
-          <img
-            class="hero-img"
-            src={hero.src}
-            srcset={`${hero.small} 900w, ${hero.src} ${Math.min(hero.width, 2400)}w`}
-            sizes="100vw"
-            alt=""
-            width={hero.width}
-            height={hero.height}
-            fetchpriority="high"
-            decoding="async"
-          />
+          <picture>
+            <source
+              type="image/avif"
+              srcset={`${hero.small.replace('.webp', '.avif')} 900w, ${hero.src.replace('.webp', '.avif')} ${Math.min(hero.width, 2400)}w`}
+              sizes="100vw"
+            />
+            <img
+              class="hero-img"
+              src={hero.src}
+              srcset={`${hero.small} 900w, ${hero.src} ${Math.min(hero.width, 2400)}w`}
+              sizes="100vw"
+              alt=""
+              width={hero.width}
+              height={hero.height}
+              fetchpriority="high"
+              decoding="sync"
+              style={`background: url(${hero.blur}) center / cover`}
+            />
+          </picture>
           <div class="hero-scrim"></div>
           <a class="hero-credit" href={`/#img-${hero.id}`}>Screenshot by {hero.author}</a>
         </>
