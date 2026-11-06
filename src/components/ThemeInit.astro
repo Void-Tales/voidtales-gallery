@@ -18,5 +18,14 @@
     var isDark = saved !== 'light';
     document.documentElement.classList.toggle('dark', isDark);
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    // The grid's pictures wait for this, so the head picture is on screen first (gallery.css).
+    // Two frames: `load` can fire before the frame that paints it.
+    addEventListener('load', function () {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          document.documentElement.classList.add('loaded');
+        });
+      });
+    });
   })();
 </script>
