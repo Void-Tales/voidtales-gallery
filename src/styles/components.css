@@ -614,3 +614,56 @@ html.dark .theme-icon-sun {
 .skip-link:focus-visible {
   transform: none;
 }
+
+/* Consent card for visit counting (public/zaehlen.js): small card top right, just below the sticky header, on the first visit. */
+.zaehlen {
+  position: fixed;
+  z-index: 40; /* below the header (50): an opened menu covers the card, not the other way round */
+  right: 1rem;
+  top: calc(var(--header-h) + 0.75rem);
+  width: min(20rem, calc(100vw - 2rem));
+  padding: 0.85rem 1rem;
+  background: color-mix(in srgb, var(--bg) 85%, transparent); /* same glass as .site-header */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-2);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  opacity: 0;
+  translate: 0 -8px;
+  transition: opacity 0.35s, translate 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.zaehlen[hidden] { display: none; }
+.zaehlen.da { opacity: 1; translate: 0; }
+.zaehlen p { margin: 0; }
+.zaehlen a { color: var(--accent); }
+.zaehlen-titel { margin-bottom: 0.15rem !important; font-size: 0.875rem; font-weight: 600; }
+.zaehlen-wahl { display: flex; gap: 0.4rem; margin-top: 0.65rem; }
+.zaehlen-wahl button {
+  flex: 1;
+  min-height: 2.5rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.2s, filter 0.2s, border-color 0.2s;
+}
+.zaehlen-wahl button + button { color: var(--text); background: var(--accent-soft); }
+/* Hover like the site's buttons: primary lifts and brightens, secondary gets the accent rim.
+   Hover only behind the capability query (touch keeps :hover latched), keyboard focus everywhere. */
+.zaehlen-wahl button:first-child:focus-visible { filter: brightness(1.08); }
+.zaehlen-wahl button + button:focus-visible { border-color: var(--accent); }
+@media (hover: hover) {
+  .zaehlen-wahl button:first-child:hover { transform: translateY(-1px); filter: brightness(1.08); }
+  .zaehlen-wahl button + button:hover { border-color: var(--accent); color: var(--text); }
+}
+.zaehlen-aendern { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+@media (max-width: 479px) { .zaehlen { right: 0.75rem; width: calc(100vw - 1.5rem); } }
+@media (prefers-reduced-motion: reduce) { .zaehlen { transition: none; } }
+@media print { .zaehlen { display: none; } }

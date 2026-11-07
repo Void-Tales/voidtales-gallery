@@ -36,8 +36,8 @@ export const footerColumns = [
   {
     title: 'Legal',
     links: [
-      { label: 'Impressum', href: `${PORTAL}/impressum/` },
-      { label: 'Datenschutz', href: `${PORTAL}/datenschutz/` },
+      { label: 'Imprint', href: `${PORTAL}/imprint/` },
+      { label: 'Privacy', href: `${PORTAL}/privacy/` },
     ],
   },
 ];

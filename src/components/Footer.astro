@@ -37,6 +37,15 @@ const year = new Date().getFullYear();
       ))}
     </div>
 
-    <p class="footer-copyright">© {year} {siteConfig.footer.copyright}</p>
+    <p class="footer-copyright">© {year} {siteConfig.footer.copyright} <button type="button" class="zaehlen-aendern" data-zaehlen-aendern hidden>Visit counting</button></p>
   </div>
 </footer>
+{/* Consent for visit counting (Umami, § 25 TDDDG): public/zaehlen.js loads the tracker only after "Yes".
+    Same id on every voidtales.win host; Umami records the hostname, so portal, gallery and wiki stay apart.
+    The choice lives in localStorage per host, so the gallery asks once on its own. */}
+<section class="zaehlen" data-zaehlen data-id="7c235267-8275-439c-8449-39b753460c67" hidden aria-labelledby="zaehlen-titel">
+  <p class="zaehlen-titel" id="zaehlen-titel">Mind if we count your visit?</p>
+  <p>Only which pages get read. No cookies, our own server, no ads. <a href="https://portal.voidtales.win/privacy/#analytics">Details</a></p>
+  <div class="zaehlen-wahl"><button type="button" data-wahl="ja">Yes</button><button type="button" data-wahl="nein">No</button></div>
+</section>
+<script is:inline defer src="/zaehlen.js?v=1"></script>
