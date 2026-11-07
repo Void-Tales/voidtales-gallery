@@ -47,7 +47,7 @@ RUN pnpm run build
 # ------------------------------------------------------------
 
 # Stage 3: Final production image for serving static files with Nginx
-FROM nginx:alpine@sha256:a3554c0d0b48177b1413c26e01f695334428020d9df01243fbae3e11cfd17417
+FROM nginx:alpine@sha256:785835ea65db4bba6f021acc0f3be91b0fef76a53fe41f8588c6698d2aed0606
 # The edge keeps HTML for 5 min, and that HTML still points at the previous
 # build's hashed CSS/JS. Carry those over (as the portal does), or a deploy
 # serves unstyled pages without lightbox until the edge copy expires.
