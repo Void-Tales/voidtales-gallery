@@ -36,6 +36,11 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 COPY . .
 # Set environment to production to optimize the build
 ENV NODE_ENV=production
+# Photos and their texts. The CI fetches them before `docker build`, so there they
+# are already in the context and this only compares the listings. The preview builds
+# on lab (Coolify) start from the bare repo and fetch them here. Without the
+# EXT_DL_URL_* args both scripts skip.
+RUN pnpm run copy:md-files && pnpm run copy:original-images
 # Build the application for production
 RUN pnpm run build
 
