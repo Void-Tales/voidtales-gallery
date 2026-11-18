@@ -1,0 +1,37 @@
+/* =================== CHRISTMAS =================== */
+
+/* 1.12. to 26.12., index.astro sets html.weihnachten by the visitor's clock.
+   Same as the portal: square snow like Minecraft's over the hero, the violet
+   stays. Two tiles that only move by transform, so the compositor does it.
+   Nothing touches the photos, they are the content. */
+.winter { display: none; }
+html.weihnachten .hero { position: relative; overflow: hidden; }
+html.weihnachten .winter { display: block; position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+html.weihnachten .hero-content { position: relative; z-index: 1; } /* snow falls behind the copy */
+.winter::before,
+.winter::after {
+  content: '';
+  position: absolute;
+  left: -40px;
+  right: -40px;
+  bottom: 0;
+  will-change: transform;
+  image-rendering: pixelated;
+}
+.winter::before {
+  top: -360px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360' shape-rendering='crispEdges'%3E%3Cg fill='white'%3E%3Crect x='1' y='6' width='4' height='4' opacity='0.94'/%3E%3Crect x='137' y='36' width='2' height='2' opacity='0.68'/%3E%3Crect x='230' y='66' width='2' height='2' opacity='0.58'/%3E%3Crect x='339' y='47' width='2' height='2' opacity='0.55'/%3E%3Crect x='26' y='138' width='4' height='4' opacity='0.60'/%3E%3Crect x='112' y='169' width='2' height='2' opacity='0.55'/%3E%3Crect x='194' y='116' width='4' height='4' opacity='0.72'/%3E%3Crect x='277' y='172' width='4' height='4' opacity='0.73'/%3E%3Crect x='61' y='267' width='4' height='4' opacity='0.76'/%3E%3Crect x='164' y='184' width='2' height='2' opacity='0.54'/%3E%3Crect x='218' y='182' width='4' height='4' opacity='0.49'/%3E%3Crect x='303' y='218' width='4' height='4' opacity='0.68'/%3E%3Crect x='63' y='332' width='2' height='2' opacity='0.62'/%3E%3Crect x='102' y='282' width='2' height='2' opacity='0.91'/%3E%3Crect x='197' y='327' width='2' height='2' opacity='0.62'/%3E%3Crect x='332' y='353' width='4' height='4' opacity='0.72'/%3E%3C/g%3E%3C/svg%3E");
+  animation: fall-a 15s linear infinite, wehen 7s ease-in-out infinite alternate;
+}
+.winter::after {
+  top: -560px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='560' height='560' shape-rendering='crispEdges'%3E%3Cg fill='white'%3E%3Crect x='95' y='99' width='6' height='6' opacity='0.75'/%3E%3Crect x='345' y='100' width='6' height='6' opacity='0.49'/%3E%3Crect x='487' y='84' width='6' height='6' opacity='0.69'/%3E%3Crect x='78' y='312' width='4' height='4' opacity='0.79'/%3E%3Crect x='220' y='238' width='4' height='4' opacity='0.65'/%3E%3Crect x='482' y='210' width='6' height='6' opacity='0.75'/%3E%3Crect x='78' y='531' width='6' height='6' opacity='0.85'/%3E%3Crect x='246' y='490' width='4' height='4' opacity='0.58'/%3E%3Crect x='512' y='556' width='4' height='4' opacity='0.60'/%3E%3C/g%3E%3C/svg%3E");
+  animation: fall-b 13s linear infinite, wehen 9s ease-in-out -3s infinite alternate;
+}
+@keyframes fall-a { to { transform: translateY(360px); } }
+@keyframes fall-b { to { transform: translateY(560px); } }
+@keyframes wehen {
+  from { translate: -14px 0; }
+  to { translate: 14px 0; }
+}
+@media (prefers-reduced-motion: reduce) { .winter { display: none !important; } }
