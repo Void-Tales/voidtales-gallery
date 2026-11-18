@@ -13,6 +13,7 @@ import '../styles/layout.css';
 import '../styles/components.css';
 import '../styles/hero.css';
 import '../styles/halloween.css';
+import '../styles/weihnachten.css';
 import '../styles/gallery.css';
 
 import Header from '../components/Header.astro';
@@ -64,8 +65,9 @@ const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
     <meta name="twitter:description" content={siteConfig.description} />
     <meta name="twitter:image" content={ogImageUrl} />
     <script is:inline>
-      // Halloween: 24.10. to 1.11. by the visitor's clock, gone by itself after (rules: styles/halloween.css)
-      (function (d) { var m = d.getMonth(), t = d.getDate(); if ((m === 9 && t >= 24) || (m === 10 && t <= 1)) document.documentElement.classList.add('halloween'); })(new Date());
+      // Halloween 24.10. to 1.11., Christmas 1.12. to 26.12., by the visitor's clock, gone by itself after
+      // (rules: styles/halloween.css, styles/weihnachten.css)
+      (function (d) { var m = d.getMonth(), t = d.getDate(), c = document.documentElement.classList; if ((m === 9 && t >= 24) || (m === 10 && t <= 1)) c.add('halloween'); if (m === 11 && t <= 26) c.add('weihnachten'); })(new Date());
     </script>
     <ThemeInit />
     <!-- Analytics: Umami loads only after consent, see components/Footer.astro and public/zaehlen.js. -->
@@ -102,6 +104,8 @@ const ogImageUrl = new URL(siteConfig.ogImage, siteConfig.url).toString();
       )}
       {/* Halloween only (styles/halloween.css): pixel bats, nothing over the photos */}
       <div class="spuk" aria-hidden="true"><i></i><i></i><i></i></div>
+      {/* Christmas only (styles/weihnachten.css): square snow, nothing over the photos */}
+      <div class="winter" aria-hidden="true"></div>
       <div class="hero-content container">
         <h1 class="hero-title">
           {beforeAccent}{hasAccent && <span class="accent">{titleAccent}</span>}{afterAccent}
